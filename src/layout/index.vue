@@ -20,6 +20,7 @@
       </div>
       <app-main />
       <settings ref="settingRef" />
+      <assistant-drawer />
     </div>
   </div>
 </template>
@@ -27,6 +28,7 @@
 <script setup>
 import { useWindowSize } from "@vueuse/core";
 import Sidebar from "./components/Sidebar/index.vue";
+import AssistantDrawer from "@/components/AssistantDrawer/index.vue";
 import { AppMain, Navbar, Settings, TagsView } from "./components";
 import defaultSettings from "@/settings";
 

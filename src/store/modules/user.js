@@ -7,6 +7,7 @@ const useUserStore = defineStore("user", {
     token: getToken(),
     id: "",
     name: "",
+    nickName: "",
     avatar: "",
     roles: [],
     permissions: [],
@@ -48,6 +49,7 @@ const useUserStore = defineStore("user", {
             }
             this.id = user.userId;
             this.name = user.userName;
+            this.nickName = user.nickName;
             this.avatar = avatar;
             resolve(res);
           })
@@ -62,6 +64,8 @@ const useUserStore = defineStore("user", {
         logout(this.token)
           .then(() => {
             this.token = "";
+            this.name = "";
+            this.nickName = "";
             this.roles = [];
             this.permissions = [];
             removeToken();
@@ -75,6 +79,8 @@ const useUserStore = defineStore("user", {
     returnLogin() {
       return new Promise((resolve, reject) => {
         this.token = "";
+        this.name = "";
+        this.nickName = "";
         this.roles = [];
         this.permissions = [];
         removeToken();
