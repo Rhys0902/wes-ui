@@ -2,30 +2,6 @@ import { defineConfig, loadEnv } from "vite";
 import path from "path";
 import createVitePlugins from "./vite/plugins";
 
-const vendorChunkRules = [
-  { match: /[\\/]node_modules[\\/](vue|vue-router|pinia|@vueuse)[\\/]/, name: "vue-vendor" },
-  { match: "/node_modules/@element-plus/icons-vue/", name: "element-plus-icons" },
-  { match: "/node_modules/echarts/", name: "echarts" },
-  { match: "/node_modules/zrender/", name: "zrender" },
-  { match: "/node_modules/d3", name: "d3" },
-  { match: "/node_modules/xlsx/", name: "file-export" },
-  { match: "/node_modules/file-saver/", name: "file-export" },
-  { match: "/node_modules/@vueup/vue-quill/", name: "editor" },
-  { match: "/node_modules/quill/", name: "editor" },
-  { match: "/node_modules/lodash/", name: "lodash" },
-  { match: "/node_modules/vue-json-viewer/", name: "json-viewer" },
-  { match: "/node_modules/vue-cropper/", name: "image-cropper" },
-  { match: "/node_modules/axios/", name: "axios" },
-  { match: "/node_modules/jsencrypt/", name: "crypto" },
-];
-
-function matchChunkRule(normalizedId) {
-  const rule = vendorChunkRules.find(({ match }) => {
-    return typeof match === "string" ? normalizedId.includes(match) : match.test(normalizedId);
-  });
-  return rule && rule.name;
-}
-
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd());
@@ -79,28 +55,8 @@ export default defineConfig(({ mode, command }) => {
       },
     },
     build: {
-      modulePreload: false,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            const normalizedId = id.replace(/\\/g, "/");
-            if (!normalizedId.includes("node_modules")) {
-              return undefined;
-            }
-            if (normalizedId.includes("/node_modules/element-plus/es/components/")) {
-              const componentName = normalizedId.split("/node_modules/element-plus/es/components/")[1].split("/")[0];
-              if (!componentName || componentName === "index.mjs") {
-                return "element-plus-core";
-              }
-              return `element-plus-${componentName}`;
-            }
-            if (normalizedId.includes("/node_modules/element-plus/")) {
-              return "element-plus-core";
-            }
-            return matchChunkRule(normalizedId) || "vendor";
-          },
-        },
-      },
+      // 业务后台依赖较多，默认分包下基础依赖 chunk 会高于 Vite 默认 500KB 阈值。
+      chunkSizeWarningLimit: 2000,
     },
   };
 });
