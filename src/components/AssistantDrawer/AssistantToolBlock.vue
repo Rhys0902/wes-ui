@@ -45,11 +45,19 @@ const statusLabel = computed(() => ({
 }[statusKey.value] || '完成'))
 
 const paramEntries = computed(() => Object.entries(props.block.params || {})
-  .filter(([, value]) => value !== undefined && value !== null && value !== '')
+  .filter(([key, value]) => !['allowedOrderTypes'].includes(key) && value !== undefined && value !== null && value !== '')
   .map(([key, value]) => ({ key, value })))
 
 const metricEntries = computed(() => {
   const data = props.block.data || {}
+  if (props.block.toolName === 'order_query') {
+    return [
+      { key: 'docStatus', label: '单据状态', value: data.docStatus },
+      { key: 'workStatus', label: '作业状态', value: data.workStatus },
+      { key: 'releaseStatus', label: '释放状态', value: data.releaseStatus },
+      { key: 'priority', label: '优先级', value: data.priority }
+    ].filter(item => item.value !== undefined && item.value !== null && item.value !== '')
+  }
   return [
     { key: 'rowCount', label: '明细数', value: data.rowCount },
     { key: 'totalQty', label: '库存合计', value: data.totalQty },
@@ -67,7 +75,10 @@ function paramLabel(key) {
     warehouseCode: '仓库',
     areaCode: '库区',
     batchCode: '批次',
-    batchNo: '批次'
+    batchNo: '批次',
+    docNumber: '单据号',
+    orderType: '单据类型',
+    orderTypeName: '单据类型'
   }[key] || key
 }
 </script>

@@ -58,13 +58,13 @@ defineEmits(['send'])
 const metrics = [
   { label: '在库物料', value: '12,480', delta: '+2.4%', tone: 'up', icon: 'Box' },
   { label: '今日订单', value: '3,256', delta: '+18%', tone: 'up', icon: 'Document' },
-  { label: '在执波次', value: '18', delta: '稳定', tone: 'flat', icon: 'Van' },
+  { label: '在执订单', value: '18', delta: '稳定', tone: 'flat', icon: 'Van' },
   { label: '待处理异常', value: '7', delta: '-2', tone: 'down', icon: 'Warning' }
 ]
 
 const capabilityCards = [
   { title: '库存定位', desc: '3.3.2.01.1004 当前库存还有多少？', prompt: '查一下 3.3.2.01.1004 的库存', icon: 'Box', tone: 'blue' },
-  { title: '波次调度', desc: '查看 W20260515 系列波次进度', prompt: '波次 W20260515-008 进度', icon: 'Van', tone: 'purple' },
+  { title: '订单跟踪', desc: '查看出库单 / 入库单当前状态', prompt: '查一下出库单 OUT-20260517-001 的状态', icon: 'Van', tone: 'purple' },
   { title: '异常处理', desc: '今日异常单与 AI 处理建议', prompt: '汇总今日异常单及处理建议', icon: 'Warning', tone: 'amber' },
   { title: '运营报表', desc: '拣选效率 / 出库及时率分析', prompt: '近 7 天出库及时率趋势', icon: 'TrendCharts', tone: 'green' }
 ]
@@ -72,7 +72,7 @@ const capabilityCards = [
 const suggestionQuestions = [
   '查一下 3.3.2.01.1004 的库存',
   '今日 A 区拣选效率排名',
-  '波次 W20260515-008 进度',
+  '查一下出库单 OUT-20260517-001 的状态',
   '汇总今日异常单及处理建议',
   '近 7 天出库及时率趋势',
   'AGV 当前在线与利用率'

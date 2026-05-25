@@ -33,15 +33,8 @@ export const ASSISTANT_ENTITY_GROUPS = [
     options: [
       { kind: 'order', id: 'OUT-20260517-001', label: '出库单 001' },
       { kind: 'order', id: 'IN-20260517-008', label: '入库单 008' },
-      { kind: 'order', id: 'MOVE-20260517-003', label: '移库单 003' }
-    ]
-  },
-  {
-    key: 'wave',
-    label: '波次',
-    options: [
-      { kind: 'wave', id: 'WAVE-20260517-A', label: '今日A波次' },
-      { kind: 'wave', id: 'WAVE-20260517-B', label: '今日B波次' }
+      { kind: 'order', id: 'MOVE-20260517-003', label: '移库单 003' },
+      { kind: 'order', id: 'COUNT-20260517-002', label: '盘点单 002' }
     ]
   }
 ]

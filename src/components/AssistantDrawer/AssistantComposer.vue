@@ -15,7 +15,7 @@
       <textarea
         v-model="innerValue"
         rows="4"
-        placeholder="问 AI 助手任何关于仓储作业的问题，输入 @ 提及仓库 / 物料 / 员工 / 订单 / 波次"
+        placeholder="问 AI 助手任何关于仓储作业的问题，输入 @ 提及仓库 / 物料 / 员工 / 订单"
         @keydown="onKeydown"
       ></textarea>
       <AssistantMentionPopover
@@ -254,7 +254,6 @@ textarea {
   }
 
   &.is-order,
-  &.is-wave,
   &.is-file {
     border-color: #ddd6fe;
     background: #f5f3ff;

@@ -48,7 +48,7 @@
             <el-icon><MagicStick /></el-icon>
             <span>AI 助手 · 智能伙伴</span>
           </div>
-          <p>问我“今日异常单”、“@物料 库存”，5 类业务实体一键查询</p>
+          <p>问我“今日异常单”、“@物料 库存”，多类业务实体一键查询</p>
           <div class="tip-tags">
             <span v-for="tag in tags" :key="tag">{{ tag }}</span>
           </div>
@@ -100,7 +100,7 @@ const quickQuestions = [
   { icon: TrendCharts, text: '出库趋势分析' }
 ]
 const recentItems = [
-  { title: '波次 W20260515-008 异常分析', time: '刚刚' },
+  { title: '出库单 OUT-20260517-001 状态', time: '刚刚' },
   { title: 'A 区库存周转分析', time: '2 小时前' },
   { title: '物料滞销 Top20 报表', time: '昨天' }
 ]
