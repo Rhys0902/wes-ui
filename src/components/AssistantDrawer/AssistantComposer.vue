@@ -15,7 +15,7 @@
       <textarea
         v-model="innerValue"
         rows="4"
-        placeholder="问 AI 助手任何关于仓储作业的问题，输入 @ 提及仓库 / SKU / 员工 / 订单 / 波次"
+        placeholder="问 AI 助手任何关于仓储作业的问题，输入 @ 提及仓库 / 物料 / 员工 / 订单 / 波次"
         @keydown="onKeydown"
       ></textarea>
       <AssistantMentionPopover
@@ -97,7 +97,7 @@ const innerValue = computed({
 const canSend = computed(() => (innerValue.value.trim() || assistantStore.entities.length > 0) && !props.loading)
 
 watch(innerValue, value => {
-  // 用户输入@时打开业务对象选择器，和Figma里的“提及仓库/SKU”等入口保持一致。
+  // 用户输入@时打开业务对象选择器，和当前仓储业务实体入口保持一致。
   if (value.endsWith('@')) {
     mentionOpen.value = true
   }
@@ -241,7 +241,7 @@ textarea {
     color: #0369a1;
   }
 
-  &.is-sku {
+  &.is-material {
     border-color: #fde68a;
     background: #fffbeb;
     color: #b45309;

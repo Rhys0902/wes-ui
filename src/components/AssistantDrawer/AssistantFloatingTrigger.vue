@@ -48,7 +48,7 @@
             <el-icon><MagicStick /></el-icon>
             <span>AI 助手 · 智能伙伴</span>
           </div>
-          <p>问我“今日异常单”、“@SKU 库存”，5 类业务实体一键查询</p>
+          <p>问我“今日异常单”、“@物料 库存”，5 类业务实体一键查询</p>
           <div class="tip-tags">
             <span v-for="tag in tags" :key="tag">{{ tag }}</span>
           </div>
@@ -96,13 +96,13 @@ const showTip = computed(() => hovered.value || props.variant === 'withTip')
 const quickQuestions = [
   { icon: DataAnalysis, text: '今日运营概览' },
   { icon: Warning, text: '异常工单汇总' },
-  { icon: Box, text: '查询 SKU 库存' },
+  { icon: Box, text: '查询物料库存' },
   { icon: TrendCharts, text: '出库趋势分析' }
 ]
 const recentItems = [
   { title: '波次 W20260515-008 异常分析', time: '刚刚' },
   { title: 'A 区库存周转分析', time: '2 小时前' },
-  { title: 'SKU 滞销 Top20 报表', time: '昨天' }
+  { title: '物料滞销 Top20 报表', time: '昨天' }
 ]
 const tags = ['异常处理', '库存查询', '出库趋势']
 

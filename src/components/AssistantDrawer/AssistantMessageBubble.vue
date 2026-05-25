@@ -16,6 +16,11 @@
         :block="block"
         @stop="assistantStore.stop"
       />
+      <AssistantToolBlock
+        v-for="(block, index) in toolBlocks"
+        :key="`${message.id || 'tool'}-${index}`"
+        :block="block"
+      />
       <div v-if="message.content" class="assistant-text" v-html="formatMarkdown(message.content)"></div>
       <span v-if="isStreaming && message.content" class="stream-cursor"></span>
       <AssistantSourcesPanel :sources="message.sources || []" />
@@ -48,6 +53,7 @@ import { formatAssistantTime } from '@/store/modules/assistantHelpers'
 import LingxiLogo from './LingxiLogo.vue'
 import AssistantSourcesPanel from './AssistantSourcesPanel.vue'
 import AssistantThinkingBlock from './AssistantThinkingBlock.vue'
+import AssistantToolBlock from './AssistantToolBlock.vue'
 
 const props = defineProps({
   message: {
@@ -69,6 +75,7 @@ const isUser = computed(() => props.message.role === 'USER')
 const isStreaming = computed(() => ['SENDING', 'STREAMING'].includes(props.message.status))
 // thinking块来自后端blocksJson或本地占位，只展示给用户看的进度摘要。
 const thinkingBlocks = computed(() => (props.message.blocks || []).filter(item => item.type === 'thinking'))
+const toolBlocks = computed(() => (props.message.blocks || []).filter(item => item.type === 'tool'))
 const showThinking = computed(() => thinkingBlocks.value.length === 0 && !props.message.content && isStreaming.value)
 const showActions = computed(() => !isUser.value && !isStreaming.value && !!props.message.content)
 const messageTime = computed(() => formatAssistantTime(props.message.updateTime || props.message.createTime))

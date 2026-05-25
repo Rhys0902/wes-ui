@@ -10,12 +10,12 @@ export const ASSISTANT_ENTITY_GROUPS = [
     ]
   },
   {
-    key: 'sku',
-    label: 'SKU',
+    key: 'material',
+    label: '物料',
     options: [
-      { kind: 'sku', id: 'SKU-000020', label: '000000020' },
-      { kind: 'sku', id: 'SKU-000056', label: '000000056' },
-      { kind: 'sku', id: 'SKU-BOX-A01', label: '标准周转箱A01' }
+      { kind: 'material', id: 'MAT-3.3.2.01.1004', label: '3.3.2.01.1004' },
+      { kind: 'material', id: 'MAT-ZKSZZX', label: '中空塑周转箱' },
+      { kind: 'material', id: 'MAT-BATCH-DEMO', label: '3.3.2.01.1004 批次 BATCH001' }
     ]
   },
   {
