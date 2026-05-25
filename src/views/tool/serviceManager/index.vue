@@ -245,7 +245,7 @@ onUnmounted(() => {
     margin-bottom: 16px;
 }
 
-:deep.el-card {
+:deep(.el-card) {
     //缩小边距
     .el-card__body {
         padding: 15px 0 !important;

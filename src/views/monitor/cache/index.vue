@@ -66,7 +66,20 @@
 
 <script setup name="Cache">
 import { getCache } from '@/api/monitor/cache';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import {
+  GaugeChart as EChartsGaugeChart,
+  PieChart as EChartsPieChart
+} from 'echarts/charts';
+import { TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+echarts.use([
+  EChartsGaugeChart,
+  EChartsPieChart,
+  TooltipComponent,
+  CanvasRenderer
+]);
 
 const cache = ref([]);
 const commandstats = ref(null);

@@ -216,10 +216,10 @@ aside {
   .jv-button {
     color: #49b3ff;
   }
-  ::v-deep .jv-key {
+  .jv-key {
     color: #07a !important;
   }
-  ::v-deep .jv-push {
+  .jv-push {
     color: #50a14f;
   }
   .jv-item {
@@ -254,7 +254,7 @@ aside {
     }
   }
   .jv-code {
-    ::v-deep .jv-toggle {
+    .jv-toggle {
       color: #067bca !important;
       &:before {
         padding: 0px 2px;

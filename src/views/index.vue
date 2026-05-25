@@ -152,9 +152,25 @@
 <script setup name="Index">
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download, Sunny, Moon } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import {
+    BarChart as EChartsBarChart,
+    GaugeChart as EChartsGaugeChart,
+    PieChart as EChartsPieChart
+} from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import useBurdenDashboardStore from '@/store/modules/burdenDashboard'
 import { exportBurdenDashboard } from '@/api/report/burdenDashboard'
+
+echarts.use([
+    EChartsBarChart,
+    EChartsGaugeChart,
+    EChartsPieChart,
+    GridComponent,
+    TooltipComponent,
+    CanvasRenderer
+])
 
 const { proxy } = getCurrentInstance()
 
