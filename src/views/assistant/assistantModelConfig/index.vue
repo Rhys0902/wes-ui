@@ -52,6 +52,18 @@
         </template>
       </el-table-column>
       <el-table-column label="模型标识" prop="modelName" min-width="160" />
+      <el-table-column label="最大Token" prop="maxTokens" width="110">
+        <template #default="scope">
+          <span v-if="isChatType(scope.row.modelType)">{{ scope.row.maxTokens || '-' }}</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="向量维度" prop="dimension" width="110">
+        <template #default="scope">
+          <span v-if="isEmbeddingType(scope.row.modelType)">{{ scope.row.dimension || 1024 }}</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="启用" prop="enabled" width="90">
         <template #default="scope">
           <el-switch
@@ -110,7 +122,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="模型类型" prop="modelType">
-              <el-select v-model="form.modelType" placeholder="请选择模型类型">
+              <el-select v-model="form.modelType" placeholder="请选择模型类型" @change="handleModelTypeChange">
                 <el-option v-for="dict in assistant_model_type" :key="dict.value" :label="dict.label" :value="dict.value" />
               </el-select>
             </el-form-item>
@@ -140,12 +152,20 @@
               <el-input v-model="form.apiSecret" type="password" show-password placeholder="可选" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
-            <el-form-item label="温度" prop="temperature">
-              <el-input-number v-model="form.temperature" :min="0" :max="2" :step="0.1" controls-position="right" />
+          <el-col v-if="isEmbeddingModel" :span="8">
+            <el-form-item label="向量维度" prop="dimension">
+              <el-select v-model="form.dimension" placeholder="请选择向量维度">
+                <el-option v-for="item in embeddingDimensionOptions" :key="item" :label="`${item} 维`" :value="item" />
+              </el-select>
+              <div class="form-tip">text-embedding-v4 默认 1024 维；维度需和 Qdrant 集合保持一致。</div>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col v-if="!isEmbeddingModel" :span="8">
+            <el-form-item label="温度" prop="temperature">
+              <el-input v-model="form.temperature" placeholder="0 - 2，例如 0.7" />
+            </el-form-item>
+          </el-col>
+          <el-col v-if="!isEmbeddingModel" :span="8">
             <el-form-item label="最大Token" prop="maxTokens">
               <el-input-number v-model="form.maxTokens" :min="1" :max="32000" controls-position="right" />
             </el-form-item>
@@ -155,7 +175,7 @@
               <el-input-number v-model="form.timeoutSeconds" :min="5" :max="600" controls-position="right" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col v-if="!isEmbeddingModel" :span="8">
             <el-form-item label="流式输出" prop="supportStream">
               <el-switch v-model="form.supportStream" active-value="Y" inactive-value="N" />
             </el-form-item>
@@ -222,6 +242,7 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref('')
+const embeddingDimensionOptions = [64, 128, 256, 512, 768, 1024, 1536, 2048]
 
 const data = reactive({
   form: {},
@@ -244,6 +265,32 @@ const data = reactive({
 })
 
 const { queryParams, form, rules } = toRefs(data)
+const isEmbeddingModel = computed(() => isEmbeddingType(form.value.modelType))
+
+// 是否为对话模型；最大Token只对对话模型有业务含义。
+function isChatType(modelType) {
+  return modelType === 'CHAT'
+}
+
+// 是否为向量模型；向量维度只对Embedding模型有业务含义。
+function isEmbeddingType(modelType) {
+  return modelType === 'EMBEDDING'
+}
+
+// 切换模型类型时同步默认字段，避免向量模型展示或提交对话模型才有意义的配置。
+function handleModelTypeChange(modelType) {
+  if (isEmbeddingType(modelType)) {
+    form.value.dimension = form.value.dimension || 1024
+    form.value.temperature = undefined
+    form.value.maxTokens = undefined
+    form.value.supportStream = 'N'
+    return
+  }
+  form.value.dimension = undefined
+  form.value.temperature = form.value.temperature || 0.7
+  form.value.maxTokens = form.value.maxTokens || 2048
+  form.value.supportStream = form.value.supportStream || 'Y'
+}
 
 // 查询模型配置列表，所有筛选条件都来自queryParams，保持和WES列表页写法一致。
 function getList() {
@@ -273,6 +320,7 @@ function reset() {
     baseUrl: undefined,
     apiKey: undefined,
     apiSecret: undefined,
+    dimension: undefined,
     temperature: 0.7,
     maxTokens: 2048,
     timeoutSeconds: 60,
@@ -284,6 +332,25 @@ function reset() {
     remark: undefined
   }
   proxy.resetForm('modelConfigRef')
+}
+
+// 构造提交参数；密钥为空表示保持原值，避免编辑时误清空已保存的密钥。
+function buildSubmitPayload() {
+  const payload = { ...form.value }
+  if (!payload.apiKey) {
+    delete payload.apiKey
+  }
+  if (!payload.apiSecret) {
+    delete payload.apiSecret
+  }
+  if (isEmbeddingType(payload.modelType)) {
+    payload.supportStream = 'N'
+    delete payload.temperature
+    delete payload.maxTokens
+  } else if (isChatType(payload.modelType)) {
+    delete payload.dimension
+  }
+  return payload
 }
 
 // 查询按钮入口：先回到第一页，再按当前筛选条件重新加载。
@@ -320,6 +387,7 @@ function handleUpdate(row) {
     form.value = response.data
     form.value.apiKey = undefined
     form.value.apiSecret = undefined
+    handleModelTypeChange(form.value.modelType)
     open.value = true
     title.value = '修改AI助手模型配置'
   })
@@ -332,9 +400,10 @@ function submitForm() {
       return
     }
     buttonLoading.value = true
-    const request = form.value.id ? updateAssistantModelConfig(form.value) : addAssistantModelConfig(form.value)
+    const payload = buildSubmitPayload()
+    const request = payload.id ? updateAssistantModelConfig(payload) : addAssistantModelConfig(payload)
     request.then(() => {
-      proxy.$modal.msgSuccess(form.value.id ? '修改成功' : '新增成功')
+      proxy.$modal.msgSuccess(payload.id ? '修改成功' : '新增成功')
       open.value = false
       getList()
     }).finally(() => {
@@ -386,3 +455,12 @@ function handleStatusChange(row) {
 
 getList()
 </script>
+
+<style scoped>
+.form-tip {
+  margin-top: 4px;
+  color: #909399;
+  font-size: 12px;
+  line-height: 18px;
+}
+</style>

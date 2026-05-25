@@ -409,6 +409,10 @@ function handleResetPwd(row) {
         })
         .catch(() => { })
 }
+/** 分配角色按钮操作 */
+function handleAuthRole(row) {
+    router.push(`/system/user-auth/role/${row.userId}`)
+}
 /** 导入按钮操作 */
 function handleImport() {
     upload.title = $t('user.userImport')

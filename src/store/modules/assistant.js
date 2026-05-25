@@ -3,11 +3,16 @@ import { sendAssistantChat, stopAssistantChat } from '@/api/assistant/assistantC
 import { listAssistantModelConfig } from '@/api/assistant/assistantModelConfig'
 import { delAssistantSession, listAssistantSession, listAssistantMessages } from '@/api/assistant/assistantSession'
 import { connectAssistantSse } from '@/utils/assistantSse'
+import { getToken } from '@/utils/auth'
 import { groupSession, toIdKey } from './assistantHelpers'
 
 const THINKING_MODE_DEEP = 'DEEP'
 const THINKING_MODE_NORMAL = 'NORMAL'
 const ASSISTANT_MODE_AUTO = 'AUTO'
+const MODEL_TYPE_CHAT = 'CHAT'
+
+// 顶部模型选择器只允许选择可生成回复的对话模型；向量模型仅用于知识库入库/检索。
+const isChatModel = model => String(model?.modelType || '').toUpperCase() === MODEL_TYPE_CHAT
 
 // 模式值需要与后端 AssistantMode 枚举保持一致，前端只负责传递用户选择。
 export const ASSISTANT_MODE_OPTIONS = [
@@ -40,8 +45,10 @@ const useAssistantStore = defineStore('assistant', {
     modelLoading: false,
     inputLoading: false,
     streamingMessageId: undefined,
+    streamFallbackTimer: undefined,
     sseReadyPromise: undefined,
-    closeSse: undefined
+    closeSse: undefined,
+    sseToken: undefined
   }),
 
   getters: {
@@ -100,43 +107,78 @@ const useAssistantStore = defineStore('assistant', {
     },
     // 建立用户级SSE通道；多个入口同时触发时复用同一个Promise，防止重复连接。
     ensureSse() {
+      const currentToken = getToken()
+      const tokenChanged = this.sseToken && this.sseToken !== currentToken
+      if (tokenChanged) {
+        this.resetUserScopedState()
+      }
       // 全局只保留一个助手SSE连接，避免抽屉多次打开时重复订阅同一用户事件。
-      if (this.connected) {
+      if (this.connected && this.sseToken === currentToken) {
         return Promise.resolve()
       }
-      if (this.sseReadyPromise) {
+      if (this.sseReadyPromise && this.sseToken === currentToken) {
         return this.sseReadyPromise
       }
+      if (this.closeSse) {
+        this.closeSse()
+      }
+      this.connected = false
+      this.sseReadyPromise = undefined
+      this.closeSse = undefined
+      this.sseToken = currentToken
       this.connecting = true
       this.connectError = ''
       this.sseReadyPromise = new Promise((resolve, reject) => {
         this.closeSse = connectAssistantSse({
           onEvent: event => this.handleStreamEvent(event),
           onOpen: () => {
+            if (this.sseToken !== currentToken) {
+              return
+            }
             this.connected = true
             this.connecting = false
             this.connectError = ''
             this.sseReadyPromise = undefined
+            this.sseToken = currentToken
             resolve()
           },
           onClose: () => {
+            if (this.sseToken !== currentToken) {
+              return
+            }
             this.connected = false
             this.connecting = false
             this.sseReadyPromise = undefined
             this.closeSse = undefined
+            this.sseToken = undefined
           },
           onError: error => {
+            if (this.sseToken !== currentToken) {
+              return
+            }
             const message = error?.message || 'SSE连接失败'
             this.connected = false
             this.connecting = false
             this.sseReadyPromise = undefined
             this.closeSse = undefined
+            this.sseToken = undefined
             this.connectError = message
             reject(new Error(message))
           }
         })
       })
       return this.sseReadyPromise
+    },
+    // 登录用户切换时清理用户级助手状态，避免把上个用户的会话ID带给后端。
+    resetUserScopedState() {
+      this.sessions = []
+      this.activeSessionId = undefined
+      this.messages = []
+      this.entities = []
+      this.sessionKeyword = ''
+      this.streamingMessageId = undefined
+      this.clearStreamFallbackTimer()
+      this.inputLoading = false
     },
     // 加载当前用户的历史会话；首次进入时自动打开最近一条会话，保持连续使用体验。
     async loadSessions() {
@@ -156,9 +198,10 @@ const useAssistantStore = defineStore('assistant', {
       try {
         const res = await listAssistantModelConfig({ pageNum: 1, pageSize: 50 })
         const rows = res.rows || []
-        this.modelOptions = rows.filter(item => item.enabled !== 'N')
+        this.modelOptions = rows.filter(item => item.enabled !== 'N' && isChatModel(item))
         const current = this.modelOptions.find(item => item.defaultFlag === 'Y') || this.modelOptions[0]
-        if (current && !this.selectedModelId) {
+        const selectedExists = this.modelOptions.some(item => toIdKey(item.id) === toIdKey(this.selectedModelId))
+        if (current && !selectedExists) {
           this.selectedModelId = current.id
         }
       } finally {
@@ -212,6 +255,7 @@ const useAssistantStore = defineStore('assistant', {
       this.activeSessionId = undefined
       this.messages = []
       this.streamingMessageId = undefined
+      this.clearStreamFallbackTimer()
     },
     // 删除历史会话前先确认并阻止删除正在流式响应的会话，避免后端仍在写入消息。
     async deleteSession(session) {
@@ -269,7 +313,9 @@ const useAssistantStore = defineStore('assistant', {
           clientMessageId,
           content: text,
           thinkingMode: this.tools.think ? THINKING_MODE_DEEP : THINKING_MODE_NORMAL,
-          assistantMode: this.assistantMode
+          assistantMode: this.assistantMode,
+          // 知识库开关只控制本次提问是否走RAG召回，默认关闭，避免普通聊天被无关知识污染。
+          knowledgeEnabled: this.tools.knowledge
         })
         const data = res.data
         const thinkingBlocks = this.tools.think ? [createThinkingBlock('running')] : []
@@ -296,6 +342,7 @@ const useAssistantStore = defineStore('assistant', {
         })
         this.entities = []
         this.streamingMessageId = data.assistantMessageId
+        this.startStreamFallbackPolling(data.sessionId, data.assistantMessageId)
         this.loadSessions()
       } finally {
         this.inputLoading = false
@@ -363,8 +410,13 @@ const useAssistantStore = defineStore('assistant', {
         } else {
           completeThinkingBlock(message)
         }
+        if (event.data?.sourcesJson || event.data?.sources) {
+          message.sourcesJson = event.data.sourcesJson || JSON.stringify(event.data.sources || [])
+          message.sources = event.data.sources || parseSourcesJson(event.data.sourcesJson)
+        }
         message.updateTime = event.timestamp || new Date().toISOString()
         this.streamingMessageId = undefined
+        this.clearStreamFallbackTimer()
         this.loadSessions()
       }
       if (event.event === 'message_error') {
@@ -373,6 +425,7 @@ const useAssistantStore = defineStore('assistant', {
         completeThinkingBlock(message, '深度思考已中断，模型响应失败。')
         message.updateTime = event.timestamp || new Date().toISOString()
         this.streamingMessageId = undefined
+        this.clearStreamFallbackTimer()
         ElMessage.error(message.errorMessage || 'AI助手响应失败')
       }
       if (event.event === 'message_stopped') {
@@ -380,6 +433,45 @@ const useAssistantStore = defineStore('assistant', {
         completeThinkingBlock(message, '深度思考已停止。')
         message.updateTime = event.timestamp || new Date().toISOString()
         this.streamingMessageId = undefined
+        this.clearStreamFallbackTimer()
+      }
+    },
+    // SSE 是实时主通道；轮询只做兜底，防止连接切换、网络抖动或事件丢失时界面长期卡在思考中。
+    startStreamFallbackPolling(sessionId, messageId, attempt = 0) {
+      this.clearStreamFallbackTimer()
+      this.streamFallbackTimer = window.setTimeout(async () => {
+        if (toIdKey(this.streamingMessageId) !== toIdKey(messageId)) {
+          return
+        }
+        try {
+          const res = await listAssistantMessages(sessionId, { pageNum: 1, pageSize: 100 })
+          const remoteMessage = (res.rows || []).find(item => toIdKey(item.id) === toIdKey(messageId))
+          if (remoteMessage && !['SENDING', 'STREAMING'].includes(remoteMessage.status)) {
+            const localMessage = this.messages.find(item => toIdKey(item.id) === toIdKey(messageId))
+            if (localMessage) {
+              Object.assign(localMessage, normalizeMessage({
+                ...localMessage,
+                ...remoteMessage,
+                clientMessageId: localMessage.clientMessageId
+              }))
+            }
+            this.streamingMessageId = undefined
+            this.clearStreamFallbackTimer()
+            this.loadSessions()
+            return
+          }
+        } catch (error) {
+          // 兜底轮询失败时继续等待SSE；下一轮再尝试，避免短暂网络抖动打断用户输入。
+        }
+        if (attempt < 10) {
+          this.startStreamFallbackPolling(sessionId, messageId, attempt + 1)
+        }
+      }, attempt === 0 ? 1800 : 1200)
+    },
+    clearStreamFallbackTimer() {
+      if (this.streamFallbackTimer) {
+        window.clearTimeout(this.streamFallbackTimer)
+        this.streamFallbackTimer = undefined
       }
     }
   }
@@ -391,7 +483,8 @@ export default useAssistantStore
 function normalizeMessage(message) {
   return {
     ...message,
-    blocks: parseBlocksJson(message.blocksJson)
+    blocks: parseBlocksJson(message.blocksJson),
+    sources: parseSourcesJson(message.sourcesJson)
   }
 }
 
@@ -403,6 +496,19 @@ function parseBlocksJson(blocksJson) {
   try {
     const blocks = JSON.parse(blocksJson)
     return Array.isArray(blocks) ? blocks : []
+  } catch (error) {
+    return []
+  }
+}
+
+// 安全解析知识库引用来源；历史消息没有sourcesJson时降级为空数组。
+function parseSourcesJson(sourcesJson) {
+  if (!sourcesJson) {
+    return []
+  }
+  try {
+    const sources = JSON.parse(sourcesJson)
+    return Array.isArray(sources) ? sources : []
   } catch (error) {
     return []
   }

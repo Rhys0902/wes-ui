@@ -6,7 +6,7 @@
       v-model="assistantStore.drawerOpen"
       direction="rtl"
       size="min(1080px, calc(100vw - 72px))"
-      custom-class="assistant-drawer"
+      class="assistant-drawer"
       :with-header="false"
     >
       <section class="assistant-shell">
