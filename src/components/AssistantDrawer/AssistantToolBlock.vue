@@ -23,6 +23,22 @@
         <strong>{{ item.value }}</strong>
       </div>
     </div>
+
+    <div v-if="exceptionRows.length" class="tool-exception-list">
+      <div v-for="item in exceptionRows" :key="item.instrNum || item.docNumber" class="tool-exception-row">
+        <div class="exception-main">
+          <strong>{{ item.instrNum || '-' }}</strong>
+          <span>{{ item.instrTypeName || item.instrType || '未知作业' }}</span>
+        </div>
+        <dl class="exception-fields">
+          <template v-for="field in exceptionFields(item)" :key="field.key">
+            <dt>{{ field.label }}</dt>
+            <dd>{{ field.value }}</dd>
+          </template>
+        </dl>
+        <div v-if="item.advice" class="exception-advice">{{ item.advice }}</div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -50,6 +66,12 @@ const paramEntries = computed(() => Object.entries(props.block.params || {})
 
 const metricEntries = computed(() => {
   const data = props.block.data || {}
+  if (props.block.toolName === 'exception_query') {
+    return [
+      { key: 'rowCount', label: '作业数', value: data.rowCount },
+      { key: 'pendingCount', label: '待处理', value: data.pendingCount }
+    ].filter(item => item.value !== undefined && item.value !== null && item.value !== '')
+  }
   if (props.block.toolName === 'order_query') {
     return [
       { key: 'docStatus', label: '单据状态', value: data.docStatus },
@@ -65,6 +87,23 @@ const metricEntries = computed(() => {
   ].filter(item => item.value !== undefined && item.value !== null && item.value !== '')
 })
 
+const exceptionRows = computed(() => {
+  const rows = props.block.data?.rows
+  return props.block.toolName === 'exception_query' && Array.isArray(rows) ? rows : []
+})
+
+function exceptionFields(item) {
+  return [
+    { key: 'docNumber', label: '关联单号', value: item.docNumber },
+    { key: 'instrStatusName', label: '指令状态', value: item.instrStatusName || item.instrStatus },
+    { key: 'wmsStatusName', label: 'WMS状态', value: item.wmsStatusName || item.wmsStatus },
+    { key: 'originLocationCode', label: '起点库位', value: item.originLocationCode },
+    { key: 'destinationLocationCode', label: '终点库位', value: item.destinationLocationCode },
+    { key: 'leCode', label: '容器编码', value: item.leCode },
+    { key: 'notes', label: '备注', value: item.notes }
+  ].filter(field => field.value !== undefined && field.value !== null && field.value !== '')
+}
+
 function paramLabel(key) {
   return {
     materialCode: '物料编码',
@@ -77,6 +116,7 @@ function paramLabel(key) {
     batchCode: '批次',
     batchNo: '批次',
     docNumber: '单据号',
+    instrNum: '指令号',
     orderType: '单据类型',
     orderTypeName: '单据类型'
   }[key] || key
@@ -198,9 +238,70 @@ function paramLabel(key) {
   line-height: 1.3;
 }
 
+.tool-exception-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tool-exception-row {
+  padding: 10px;
+  border: 1px solid #e6edf7;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.exception-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #1f2a44;
+  font-size: 13px;
+}
+
+.exception-main strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.exception-main span {
+  flex: 0 0 auto;
+  color: #6b7890;
+}
+
+.exception-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+  margin: 8px 0 0;
+}
+
+.exception-fields dt {
+  color: #6b7890;
+  font-size: 12px;
+}
+
+.exception-fields dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #1f2a44;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.exception-advice {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 640px) {
   .tool-params,
-  .tool-metrics {
+  .tool-metrics,
+  .exception-fields {
     grid-template-columns: 1fr;
   }
 }
