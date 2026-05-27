@@ -1,8 +1,13 @@
 <template>
   <div>
-    <AssistantFloatingTrigger @open="assistantStore.openDrawer" @ask="sendSuggestion" />
+    <AssistantFloatingTrigger
+      v-if="assistantStore.assistantEnabled"
+      @open="assistantStore.openDrawer"
+      @ask="sendSuggestion"
+    />
 
     <el-drawer
+      v-if="assistantStore.assistantEnabled"
       v-model="assistantStore.drawerOpen"
       direction="rtl"
       size="min(1080px, calc(100vw - 72px))"
@@ -58,14 +63,22 @@
             </div>
           </header>
 
-          <div ref="messageWrapRef" class="conversation">
+          <div ref="messageWrapRef" class="conversation" @scroll="handleConversationScroll">
             <AssistantWelcome
               v-if="assistantStore.messages.length === 0"
               @send="sendSuggestion"
             />
             <div v-else class="message-list">
+              <button
+                v-if="hiddenMessageCount > 0"
+                type="button"
+                class="history-window-tip"
+                @click="loadMoreHistory"
+              >
+                查看更早 {{ hiddenMessageCount }} 条消息
+              </button>
               <div
-                v-for="message in assistantStore.messages"
+                v-for="message in renderedMessages"
                 :key="message.id"
                 class="message-anchor"
                 :data-message-id="message.id"
@@ -110,6 +123,13 @@ const conversationSearchVisible = ref(false)
 const conversationKeyword = ref('')
 const activeMatchIndex = ref(0)
 const conversationSearchRef = ref(null)
+const MESSAGE_WINDOW_SIZE = 80
+const MESSAGE_WINDOW_STEP = 40
+const visibleMessageLimit = ref(MESSAGE_WINDOW_SIZE)
+
+onMounted(() => {
+  assistantStore.loadAssistantEnabled()
+})
 
 // 当前对话搜索只检索已加载消息内容，不请求后端，保证打开搜索时即时反馈。
 const searchMatches = computed(() => {
@@ -120,6 +140,15 @@ const searchMatches = computed(() => {
   return assistantStore.messages.filter(item => String(item.content || '').toLowerCase().includes(keyword))
 })
 const activeSearchMessageId = computed(() => searchMatches.value[activeMatchIndex.value]?.id)
+const isSearchingConversation = computed(() => !!conversationKeyword.value.trim())
+const renderedMessages = computed(() => {
+  const messages = assistantStore.messages
+  if (isSearchingConversation.value || messages.length <= visibleMessageLimit.value) {
+    return messages
+  }
+  return messages.slice(messages.length - visibleMessageLimit.value)
+})
+const hiddenMessageCount = computed(() => Math.max(assistantStore.messages.length - renderedMessages.value.length, 0))
 const searchCountText = computed(() => {
   if (!conversationKeyword.value.trim()) {
     return ''
@@ -199,10 +228,76 @@ function scrollToBottom() {
   }
 }
 
+// 长会话默认只挂载最近消息；向上查看时再扩展历史窗口，控制DOM数量和历史Markdown重渲染成本。
+function loadMoreHistory() {
+  if (hiddenMessageCount.value <= 0) {
+    return
+  }
+  const wrap = messageWrapRef.value
+  const previousHeight = wrap?.scrollHeight || 0
+  const previousTop = wrap?.scrollTop || 0
+  visibleMessageLimit.value = Math.min(
+    assistantStore.messages.length,
+    visibleMessageLimit.value + MESSAGE_WINDOW_STEP
+  )
+  nextTick(() => {
+    if (wrap) {
+      wrap.scrollTop = previousTop + wrap.scrollHeight - previousHeight
+    }
+  })
+}
+
+function handleConversationScroll() {
+  if (conversationKeyword.value.trim()) {
+    return
+  }
+  const wrap = messageWrapRef.value
+  if (wrap && wrap.scrollTop < 80) {
+    loadMoreHistory()
+  }
+}
+
+let scrollFrame
+function scheduleScrollToBottom() {
+  if (scrollFrame) {
+    return
+  }
+  const run = () => {
+    scrollFrame = undefined
+    scrollToBottom()
+  }
+  scrollFrame = window.requestAnimationFrame ? window.requestAnimationFrame(run) : window.setTimeout(run, 50)
+}
+
 watch(
-  () => assistantStore.messages.map(item => `${item.status}:${item.content}`).join('|'),
-  () => nextTick(scrollToBottom)
+  () => {
+    const lastMessage = assistantStore.messages[assistantStore.messages.length - 1]
+    return [
+      assistantStore.messages.length,
+      assistantStore.streamingMessageId,
+      lastMessage?.status,
+      lastMessage?.content?.length
+    ].join('|')
+  },
+  () => nextTick(scheduleScrollToBottom)
 )
+
+watch(
+  () => assistantStore.activeSessionId,
+  () => {
+    visibleMessageLimit.value = MESSAGE_WINDOW_SIZE
+  }
+)
+
+onBeforeUnmount(() => {
+  if (!scrollFrame) {
+    return
+  }
+  if (window.cancelAnimationFrame) {
+    window.cancelAnimationFrame(scrollFrame)
+  }
+  window.clearTimeout(scrollFrame)
+})
 
 watch(conversationKeyword, () => {
   activeMatchIndex.value = 0
@@ -348,6 +443,24 @@ watch(conversationKeyword, () => {
   width: 100%;
   margin: 0 auto;
   padding: 24px 32px 32px;
+}
+
+.history-window-tip {
+  display: block;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #c4b5fd;
+    color: #7c3aed;
+  }
 }
 
 @media (max-width: 900px) {

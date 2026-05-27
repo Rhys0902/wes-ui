@@ -39,6 +39,21 @@
         <div v-if="item.advice" class="exception-advice">{{ item.advice }}</div>
       </div>
     </div>
+
+    <div v-if="reportRows.length" class="tool-report-list">
+      <div v-for="(item, index) in reportRows" :key="reportRowKey(item, index)" class="tool-report-row">
+        <div class="report-main">
+          <strong>{{ item.materialName || item.docNumber || item.materialCode || '-' }}</strong>
+          <span>{{ item.docTypeName || item.transType || item.batchCode || '报表明细' }}</span>
+        </div>
+        <dl class="report-fields">
+          <template v-for="field in reportFields(item)" :key="field.key">
+            <dt>{{ field.label }}</dt>
+            <dd>{{ field.value }}</dd>
+          </template>
+        </dl>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -80,6 +95,9 @@ const metricEntries = computed(() => {
       { key: 'priority', label: '优先级', value: data.priority }
     ].filter(item => item.value !== undefined && item.value !== null && item.value !== '')
   }
+  if (props.block.toolName === 'report_query') {
+    return reportMetricEntries(data)
+  }
   return [
     { key: 'rowCount', label: '明细数', value: data.rowCount },
     { key: 'totalQty', label: '库存合计', value: data.totalQty },
@@ -92,6 +110,12 @@ const exceptionRows = computed(() => {
   return props.block.toolName === 'exception_query' && Array.isArray(rows) ? rows : []
 })
 
+const reportRows = computed(() => {
+  const rows = props.block.data?.rows
+  return props.block.toolName === 'report_query' && Array.isArray(rows) ? rows : []
+})
+
+// 异常查询卡片按作业指令排查顺序展示字段：状态、库位、容器，再给处理建议。
 function exceptionFields(item) {
   return [
     { key: 'docNumber', label: '关联单号', value: item.docNumber },
@@ -104,6 +128,72 @@ function exceptionFields(item) {
   ].filter(field => field.value !== undefined && field.value !== null && field.value !== '')
 }
 
+// 报表类型不同，核心指标不同；这里把后端 reportType 映射成固定的卡片指标。
+function reportMetricEntries(data) {
+  const common = [
+    { key: 'reportName', label: '报表类型', value: data.reportName },
+    { key: 'rowCount', label: '明细数', value: data.rowCount }
+  ]
+  if (data.reportType === 'in_out_trans') {
+    return [
+      ...common,
+      { key: 'periodName', label: '统计周期', value: data.periodName },
+      { key: 'transQtyTotal', label: '交易数量', value: data.transQtyTotal },
+      { key: 'orderedQtyTotal', label: '订单数量', value: data.orderedQtyTotal }
+    ].filter(validMetric)
+  }
+  if (data.reportType === 'stock_day') {
+    return [
+      ...common,
+      { key: 'qtyTotal', label: '库存数量', value: data.qtyTotal },
+      { key: 'allocationQtyTotal', label: '分配数量', value: data.allocationQtyTotal },
+      { key: 'maxDateDiff', label: '最大账龄', value: data.maxDateDiff }
+    ].filter(validMetric)
+  }
+  return [
+    ...common,
+    { key: 'qtyTotal', label: '库存数量', value: data.qtyTotal },
+    { key: 'allocationQtyTotal', label: '分配数量', value: data.allocationQtyTotal },
+    { key: 'allocationRate', label: '分配占比', value: data.allocationRate === undefined ? undefined : `${data.allocationRate}%` }
+  ].filter(validMetric)
+}
+
+// 报表明细分交易类和库存类两种结构，前端只展示业务人员排查时会看的字段。
+function reportFields(item) {
+  if ('transQty' in item || 'docNumber' in item) {
+    return [
+      { key: 'docNumber', label: '单据号', value: item.docNumber },
+      { key: 'materialCode', label: '物料编码', value: item.materialCode },
+      { key: 'batchCode', label: '批次', value: item.batchCode },
+      { key: 'transQty', label: '交易数量', value: item.transQty },
+      { key: 'unit', label: '单位', value: item.unit },
+      { key: 'leCode', label: '托盘编码', value: item.leCode },
+      { key: 'sourceLocCode', label: '源库位', value: item.sourceLocCode },
+      { key: 'targetLocCode', label: '目标库位', value: item.targetLocCode },
+      { key: 'ediStatus', label: '过账状态', value: item.ediStatus }
+    ].filter(validMetric)
+  }
+  return [
+    { key: 'materialCode', label: '物料编码', value: item.materialCode },
+    { key: 'batchCode', label: '批次', value: item.batchCode },
+    { key: 'qty', label: '库存数量', value: item.qty },
+    { key: 'allocationQty', label: '分配数量', value: item.allocationQty },
+    { key: 'unit', label: '单位', value: item.unit },
+    { key: 'dateDiff', label: '账龄', value: item.dateDiff }
+  ].filter(validMetric)
+}
+
+// 报表行可能没有统一主键，优先使用单据号/物料编码/批次组合保证列表稳定。
+function reportRowKey(item, index) {
+  return `${item.docNumber || item.materialCode || 'report'}-${item.batchCode || index}`
+}
+
+// 空值不占用指标位，避免卡片出现“字段名 + 空白”的噪音。
+function validMetric(item) {
+  return item.value !== undefined && item.value !== null && item.value !== ''
+}
+
+// 工具入参来自后端统一 params，这里转换成业务可读标签。
 function paramLabel(key) {
   return {
     materialCode: '物料编码',
@@ -118,7 +208,9 @@ function paramLabel(key) {
     docNumber: '单据号',
     instrNum: '指令号',
     orderType: '单据类型',
-    orderTypeName: '单据类型'
+    orderTypeName: '单据类型',
+    reportType: '报表类型',
+    period: '统计周期'
   }[key] || key
 }
 </script>
@@ -238,20 +330,23 @@ function paramLabel(key) {
   line-height: 1.3;
 }
 
-.tool-exception-list {
+.tool-exception-list,
+.tool-report-list {
   display: grid;
   gap: 8px;
   margin-top: 12px;
 }
 
-.tool-exception-row {
+.tool-exception-row,
+.tool-report-row {
   padding: 10px;
   border: 1px solid #e6edf7;
   border-radius: 6px;
   background: #ffffff;
 }
 
-.exception-main {
+.exception-main,
+.report-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -260,29 +355,34 @@ function paramLabel(key) {
   font-size: 13px;
 }
 
-.exception-main strong {
+.exception-main strong,
+.report-main strong {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.exception-main span {
+.exception-main span,
+.report-main span {
   flex: 0 0 auto;
   color: #6b7890;
 }
 
-.exception-fields {
+.exception-fields,
+.report-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 10px;
   margin: 8px 0 0;
 }
 
-.exception-fields dt {
+.exception-fields dt,
+.report-fields dt {
   color: #6b7890;
   font-size: 12px;
 }
 
-.exception-fields dd {
+.exception-fields dd,
+.report-fields dd {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
@@ -301,7 +401,8 @@ function paramLabel(key) {
 @media (max-width: 640px) {
   .tool-params,
   .tool-metrics,
-  .exception-fields {
+  .exception-fields,
+  .report-fields {
     grid-template-columns: 1fr;
   }
 }

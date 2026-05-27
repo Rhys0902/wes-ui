@@ -16,7 +16,7 @@
       <span class="thinking-title">
         <span class="thinking-icon spinning">⌘</span>
         深度思考中...
-        <span class="thinking-time">已用时 {{ block.elapsed || '0.0s' }}</span>
+        <span class="thinking-time">已用时 {{ runningElapsed }}</span>
       </span>
       <button class="stop-button" type="button" @click="$emit('stop')">
         <span class="stop-dot"></span>
@@ -59,7 +59,15 @@ defineEmits(['stop'])
 // 思考块只展示可给用户看的进度摘要，不展示模型内部推理链。
 const isDone = computed(() => props.block.phase === 'done')
 const open = ref(!isDone.value && props.block.defaultOpen !== false)
+const elapsedTick = ref(Date.now())
+const elapsedBaseTime = ref(Date.now() - parseElapsedMillis(props.block.elapsed))
 const steps = computed(() => props.block.steps || [])
+const runningElapsed = computed(() => {
+  if (isDone.value) {
+    return props.block.totalTime || props.block.elapsed || '0.0s'
+  }
+  return formatElapsed(elapsedTick.value - elapsedBaseTime.value)
+})
 // 摘要优先展示完成态内容；运行中则展示partial，让用户知道系统还在处理。
 const summaryText = computed(() => {
   if (isDone.value) {
@@ -67,6 +75,53 @@ const summaryText = computed(() => {
   }
   return props.block.content || props.block.partial || '等待模型返回深度分析...'
 })
+
+let elapsedTimer
+function startElapsedTimer() {
+  stopElapsedTimer()
+  if (isDone.value) {
+    return
+  }
+  elapsedTimer = window.setInterval(() => {
+    elapsedTick.value = Date.now()
+  }, 300)
+}
+
+function stopElapsedTimer() {
+  if (elapsedTimer) {
+    window.clearInterval(elapsedTimer)
+    elapsedTimer = undefined
+  }
+}
+
+// 后端只在阶段变化时推送elapsed，运行中的连续计时由前端本地维护，避免首包前看起来卡死。
+watch(
+  () => props.block.elapsed,
+  value => {
+    elapsedBaseTime.value = Date.now() - parseElapsedMillis(value)
+    elapsedTick.value = Date.now()
+  }
+)
+
+watch(isDone, done => {
+  if (done) {
+    stopElapsedTimer()
+    return
+  }
+  startElapsedTimer()
+})
+
+onMounted(startElapsedTimer)
+onBeforeUnmount(stopElapsedTimer)
+
+function parseElapsedMillis(value) {
+  const seconds = Number.parseFloat(String(value || '').replace('s', ''))
+  return Number.isFinite(seconds) ? seconds * 1000 : 0
+}
+
+function formatElapsed(millis) {
+  return `${(Math.max(millis, 0) / 1000).toFixed(1)}s`
+}
 
 // 思考内容也可能来自模型或后端拼接，渲染前必须统一转义。
 function escapeHtml(text) {

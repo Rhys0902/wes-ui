@@ -51,30 +51,55 @@
 </template>
 
 <script setup>
+import { onMounted, ref } from 'vue'
+import { getAssistantOverview } from '@/api/assistant/assistantChat'
 import LingxiLogo from './LingxiLogo.vue'
 
 defineEmits(['send'])
 
-const metrics = [
-  { label: '在库物料', value: '12,480', delta: '+2.4%', tone: 'up', icon: 'Box' },
-  { label: '今日订单', value: '3,256', delta: '+18%', tone: 'up', icon: 'Document' },
-  { label: '在执订单', value: '18', delta: '稳定', tone: 'flat', icon: 'Van' },
-  { label: '待处理异常', value: '7', delta: '-2', tone: 'down', icon: 'Warning' }
+const metricBaseList = [
+  { key: 'stockMaterial', label: '在库物料', value: '--', delta: '实时', tone: 'flat', icon: 'Box' },
+  { key: 'todayOrder', label: '今日订单', value: '--', delta: '今日', tone: 'flat', icon: 'Document' },
+  { key: 'activeOrder', label: '在执订单', value: '--', delta: '未完成', tone: 'flat', icon: 'Van' },
+  { key: 'pendingException', label: '待处理异常', value: '--', delta: '待处理', tone: 'down', icon: 'Warning' }
 ]
+
+const metrics = ref(metricBaseList.map(item => ({ ...item })))
+
+// 欢迎页指标只展示真实接口数据；异常时保留占位符，避免误导用户。
+const loadOverviewMetrics = async () => {
+  try {
+    const response = await getAssistantOverview()
+    const rows = Array.isArray(response.data) ? response.data : []
+    metrics.value = metricBaseList.map(base => {
+      const row = rows.find(item => item.key === base.key) || {}
+      return {
+        ...base,
+        value: row.value || '--',
+        delta: row.delta || base.delta,
+        tone: row.tone || base.tone
+      }
+    })
+  } catch (error) {
+    metrics.value = metricBaseList.map(item => ({ ...item }))
+  }
+}
+
+onMounted(loadOverviewMetrics)
 
 const capabilityCards = [
   { title: '库存定位', desc: '3.3.2.01.1004 当前库存还有多少？', prompt: '查一下 3.3.2.01.1004 的库存', icon: 'Box', tone: 'blue' },
   { title: '订单跟踪', desc: '查看出库单 / 入库单当前状态', prompt: '查一下出库单 OUT-20260517-001 的状态', icon: 'Van', tone: 'purple' },
   { title: '异常处理', desc: '今日异常单与 AI 处理建议', prompt: '汇总今日异常单及处理建议', icon: 'Warning', tone: 'amber' },
-  { title: '运营报表', desc: '拣选效率 / 出库及时率分析', prompt: '近 7 天出库及时率趋势', icon: 'TrendCharts', tone: 'green' }
+  { title: '运营报表', desc: '出入库交易 / 库存汇总分析', prompt: '查一下近 7 天出入库交易统计', icon: 'TrendCharts', tone: 'green' }
 ]
 
 const suggestionQuestions = [
   '查一下 3.3.2.01.1004 的库存',
-  '今日 A 区拣选效率排名',
+  '哪些库存库龄比较久',
   '查一下出库单 OUT-20260517-001 的状态',
   '汇总今日异常单及处理建议',
-  '近 7 天出库及时率趋势',
+  '查一下近 7 天出入库交易统计',
   'AGV 当前在线与利用率'
 ]
 </script>

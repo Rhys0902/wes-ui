@@ -2,7 +2,7 @@
   <div v-if="isUser" class="message-row is-user">
     <div class="user-message" :class="{ active: activeSearch }">
       <div class="message-time">{{ messageTime }}</div>
-      <div class="user-bubble" v-html="formatPlainText(message.content)"></div>
+      <div class="user-bubble" v-html="plainTextHtml"></div>
     </div>
   </div>
 
@@ -21,7 +21,7 @@
         :key="`${message.id || 'tool'}-${index}`"
         :block="block"
       />
-      <div v-if="message.content" class="assistant-text" v-html="formatMarkdown(message.content)"></div>
+      <div v-if="message.content" class="assistant-text" v-html="markdownHtml"></div>
       <span v-if="isStreaming && message.content" class="stream-cursor"></span>
       <AssistantSourcesPanel :sources="message.sources || []" />
       <div v-if="showThinking" class="thinking-card">
@@ -54,6 +54,9 @@ import LingxiLogo from './LingxiLogo.vue'
 import AssistantSourcesPanel from './AssistantSourcesPanel.vue'
 import AssistantThinkingBlock from './AssistantThinkingBlock.vue'
 import AssistantToolBlock from './AssistantToolBlock.vue'
+
+const MARKDOWN_CACHE_LIMIT = 160
+const markdownHtmlCache = new Map()
 
 const props = defineProps({
   message: {
@@ -94,6 +97,134 @@ const routeLabel = computed(() => {
 })
 const messageMeta = computed(() => [messageTime.value, routeLabel.value].filter(Boolean).join(' · '))
 const activeKeyword = computed(() => props.searchKeyword.trim())
+const plainTextHtml = computed(() => formatPlainText(props.message.content))
+const displayContent = ref(props.message.content || '')
+const markdownHtml = computed(() => isStreaming.value
+  ? formatPlainText(displayContent.value)
+  : getCachedMarkdown(displayContent.value))
+
+let displayTimer
+let pendingDisplayContent = displayContent.value
+const STREAM_PLAY_INTERVAL = 50
+const STREAM_FAST_PLAY_INTERVAL = 30
+const STREAM_MIN_CHARS_PER_TICK = 6
+const STREAM_MAX_CHARS_PER_TICK = 96
+
+// store保存完整实时内容；组件展示层按帧追赶，减少长回答时整段Markdown高频重算。
+watch(
+  () => props.message.content || '',
+  content => {
+    if (!isStreaming.value) {
+      displayContent.value = content
+      return
+    }
+    scheduleDisplayContent(content)
+  },
+  { immediate: true }
+)
+
+watch(isStreaming, streaming => {
+  if (!streaming) {
+    cancelDisplaySchedule()
+    displayContent.value = props.message.content || ''
+  }
+})
+
+onBeforeUnmount(() => {
+  cancelDisplaySchedule()
+})
+
+// 流式输出只允许一个待刷新任务排队，任务执行时永远使用最新内容，避免高频分片造成渲染积压。
+function scheduleDisplayContent(content) {
+  pendingDisplayContent = content
+  if (displayTimer) {
+    return
+  }
+  queueDisplayFrame()
+}
+
+function queueDisplayFrame() {
+  const flush = () => {
+    displayTimer = undefined
+    flushDisplayContent()
+  }
+  displayTimer = window.setTimeout(flush, getStreamDisplayDelay())
+}
+
+// 客户端平滑打字层：真实内容按SSE到达，视觉输出按帧追赶，避免大批分片一次性跳出。
+function flushDisplayContent() {
+  const current = displayContent.value || ''
+  const target = pendingDisplayContent || ''
+  if (!isStreaming.value || target.length <= current.length || !target.startsWith(current)) {
+    displayContent.value = target
+    return
+  }
+  const backlog = target.length - current.length
+  const nextLength = Math.min(target.length, current.length + getStreamDisplayStep(backlog))
+  displayContent.value = target.slice(0, nextLength)
+  if (nextLength < target.length) {
+    queueDisplayFrame()
+  }
+}
+
+function getStreamDisplayDelay() {
+  const backlog = (pendingDisplayContent || '').length - (displayContent.value || '').length
+  return backlog > 500 ? STREAM_FAST_PLAY_INTERVAL : STREAM_PLAY_INTERVAL
+}
+
+function getStreamDisplayStep(backlog) {
+  if (backlog > 800) {
+    return STREAM_MAX_CHARS_PER_TICK
+  }
+  if (backlog > 400) {
+    return 64
+  }
+  if (backlog > 160) {
+    return 36
+  }
+  if (backlog > 64) {
+    return 18
+  }
+  if (backlog > 24) {
+    return 10
+  }
+  return STREAM_MIN_CHARS_PER_TICK
+}
+
+// 流式阶段只做纯文本渲染，避免每个分片都重复执行Markdown正则；完成后再恢复轻量Markdown。
+function cancelDisplaySchedule() {
+  if (displayTimer) {
+    window.clearTimeout(displayTimer)
+  }
+  displayTimer = undefined
+}
+
+// 完成态Markdown按消息内容和搜索词缓存，长会话滚动或状态刷新时不重复格式化历史回答。
+function getCachedMarkdown(text) {
+  const cacheKey = [
+    props.message.id || props.message.clientMessageId || 'message',
+    activeKeyword.value,
+    text.length,
+    hashString(text)
+  ].join('|')
+  if (markdownHtmlCache.has(cacheKey)) {
+    return markdownHtmlCache.get(cacheKey)
+  }
+  const html = formatMarkdown(text)
+  markdownHtmlCache.set(cacheKey, html)
+  if (markdownHtmlCache.size > MARKDOWN_CACHE_LIMIT) {
+    markdownHtmlCache.delete(markdownHtmlCache.keys().next().value)
+  }
+  return html
+}
+
+function hashString(text) {
+  let hash = 0
+  for (let i = 0; i < text.length; i += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0
+  }
+  return hash
+}
 
 // 所有富文本渲染前先转义HTML，避免模型输出或历史消息注入页面结构。
 function escapeHtml(text) {

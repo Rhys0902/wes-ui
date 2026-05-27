@@ -1,5 +1,5 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { sendAssistantChat, stopAssistantChat } from '@/api/assistant/assistantChat'
+import { getAssistantEnabled, sendAssistantChat, stopAssistantChat } from '@/api/assistant/assistantChat'
 import { listAssistantModelConfig } from '@/api/assistant/assistantModelConfig'
 import { delAssistantSession, listAssistantSession, listAssistantMessages } from '@/api/assistant/assistantSession'
 import { connectAssistantSse } from '@/utils/assistantSse'
@@ -10,6 +10,7 @@ const THINKING_MODE_DEEP = 'DEEP'
 const THINKING_MODE_NORMAL = 'NORMAL'
 const ASSISTANT_MODE_AUTO = 'AUTO'
 const MODEL_TYPE_CHAT = 'CHAT'
+const STREAM_FALLBACK_MAX_ATTEMPTS = 120
 
 // 顶部模型选择器只允许选择可生成回复的对话模型；向量模型仅用于知识库入库/检索。
 const isChatModel = model => String(model?.modelType || '').toUpperCase() === MODEL_TYPE_CHAT
@@ -23,6 +24,8 @@ export const ASSISTANT_MODE_OPTIONS = [
 
 const useAssistantStore = defineStore('assistant', {
   state: () => ({
+    assistantEnabled: false,
+    assistantEnabledLoaded: false,
     drawerOpen: false,
     connected: false,
     connecting: false,
@@ -94,8 +97,29 @@ const useAssistantStore = defineStore('assistant', {
   },
 
   actions: {
+    // 读取后端AI助手总开关；关闭时同步收起抽屉并停止前端入口能力。
+    async loadAssistantEnabled() {
+      try {
+        const res = await getAssistantEnabled()
+        this.assistantEnabled = res.data === true
+      } catch (error) {
+        this.assistantEnabled = false
+      } finally {
+        this.assistantEnabledLoaded = true
+      }
+      if (!this.assistantEnabled) {
+        this.closeDrawer()
+      }
+      return this.assistantEnabled
+    },
     // 打开助手抽屉时同步拉起三类首屏依赖：SSE连接、可选模型、历史会话。
-    openDrawer() {
+    async openDrawer() {
+      if (!this.assistantEnabledLoaded) {
+        await this.loadAssistantEnabled()
+      }
+      if (!this.assistantEnabled) {
+        return
+      }
       this.drawerOpen = true
       this.ensureSse().catch(() => {})
       this.loadModelOptions()
@@ -293,6 +317,10 @@ const useAssistantStore = defineStore('assistant', {
     },
     // 发送用户问题：先确保SSE在线，再发起HTTP请求创建消息，最后等待SSE补齐回答。
     async send(content) {
+      if (!this.assistantEnabled) {
+        ElMessage.warning('AI助手功能未启用')
+        return
+      }
       const text = this.buildPrompt(content)
       if (!text) {
         return
@@ -436,7 +464,7 @@ const useAssistantStore = defineStore('assistant', {
         this.clearStreamFallbackTimer()
       }
     },
-    // SSE 是实时主通道；轮询只做兜底，防止连接切换、网络抖动或事件丢失时界面长期卡在思考中。
+    // SSE 是实时主通道；轮询只做兜底。模型生成可能超过十几秒，所以兜底要覆盖长回答场景。
     startStreamFallbackPolling(sessionId, messageId, attempt = 0) {
       this.clearStreamFallbackTimer()
       this.streamFallbackTimer = window.setTimeout(async () => {
@@ -463,7 +491,7 @@ const useAssistantStore = defineStore('assistant', {
         } catch (error) {
           // 兜底轮询失败时继续等待SSE；下一轮再尝试，避免短暂网络抖动打断用户输入。
         }
-        if (attempt < 10) {
+        if (attempt < STREAM_FALLBACK_MAX_ATTEMPTS) {
           this.startStreamFallbackPolling(sessionId, messageId, attempt + 1)
         }
       }, attempt === 0 ? 1800 : 1200)

@@ -56,7 +56,12 @@ export function connectAssistantSse(options = {}) {
         const parsed = parseEvent(block)
         // AI助手只消费assistant事件，其他系统事件可以继续留给全局SSE能力扩展。
         if (parsed.event === 'assistant' && parsed.data) {
-          onEvent && onEvent(JSON.parse(parsed.data))
+          try {
+            onEvent && onEvent(JSON.parse(parsed.data))
+          } catch (error) {
+            // 单个异常事件不能中断整条SSE连接，否则会导致后续message_end丢失。
+            onError && onError(error)
+          }
         }
       })
     }
