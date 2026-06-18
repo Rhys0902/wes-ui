@@ -36,7 +36,7 @@
                                 <span>启动 {{ formatTime(service.lastStartTime) }}</span>
                                 <span>停止 {{ formatTime(service.lastStopTime) }}</span>
                             </div>
-                            <el-tooltip v-if="service.lastErrorMessage" :content="service.lastErrorMessage" placement="top" :show-after="200">
+                            <el-tooltip v-if="service.lastErrorMessage" :content="service.lastErrorMessage" placement="top" :show-after="200" popper-class="service-error-tooltip">
                                 <div class="error-message">
                                     <el-icon><CircleCloseFilled /></el-icon>
                                     <span>{{ service.lastErrorMessage }}</span>
@@ -46,36 +46,36 @@
                         <div class="actions">
                             <el-button-group>
                                 <el-tooltip :content="getActionTip(service, 'start', '启动')" placement="top">
-                                    <span class="action-wrapper">
-                                        <el-button v-hasPermi="['pkt:service:start']" type="success" :icon="VideoPlay" size="small" @click="start(service)" :disabled="!canOperate(service, 'start')" :loading="isActionLoading(service.svcCode, 'start')">
+                                    <span v-hasPermi="['pkt:service:start']" class="action-wrapper">
+                                        <el-button type="success" :icon="VideoPlay" size="small" @click="start(service)" :disabled="!canOperate(service, 'start')" :loading="isActionLoading(service.svcCode, 'start')">
                                             启动
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'stop', '停止')" placement="top">
-                                    <span class="action-wrapper">
-                                        <el-button v-hasPermi="['pkt:service:stop']" type="danger" :icon="VideoPause" size="small" @click="stop(service)" :disabled="!canOperate(service, 'stop')" :loading="isActionLoading(service.svcCode, 'stop')">
+                                    <span v-hasPermi="['pkt:service:stop']" class="action-wrapper">
+                                        <el-button type="danger" :icon="VideoPause" size="small" @click="stop(service)" :disabled="!canOperate(service, 'stop')" :loading="isActionLoading(service.svcCode, 'stop')">
                                             停止
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'pause', '暂停')" placement="top">
-                                    <span class="action-wrapper">
-                                        <el-button v-hasPermi="['pkt:service:pause']" type="warning" :icon="Minus" size="small" @click="pause(service)" :disabled="!canOperate(service, 'pause')" :loading="isActionLoading(service.svcCode, 'pause')">
+                                    <span v-hasPermi="['pkt:service:pause']" class="action-wrapper">
+                                        <el-button type="warning" :icon="Minus" size="small" @click="pause(service)" :disabled="!canOperate(service, 'pause')" :loading="isActionLoading(service.svcCode, 'pause')">
                                             暂停
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'resume', '恢复')" placement="top">
-                                    <span class="action-wrapper">
-                                        <el-button v-hasPermi="['pkt:service:resume']" type="info" :icon="RefreshRight" size="small" @click="resume(service)" :disabled="!canOperate(service, 'resume')" :loading="isActionLoading(service.svcCode, 'resume')">
+                                    <span v-hasPermi="['pkt:service:resume']" class="action-wrapper">
+                                        <el-button type="info" :icon="RefreshRight" size="small" @click="resume(service)" :disabled="!canOperate(service, 'resume')" :loading="isActionLoading(service.svcCode, 'resume')">
                                             恢复
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'restart', '重启')" placement="top">
-                                    <span class="action-wrapper">
-                                        <el-button v-hasPermi="['pkt:service:restart']" type="primary" :icon="Refresh" size="small" @click="restart(service)" :disabled="!canOperate(service, 'restart')" :loading="isActionLoading(service.svcCode, 'restart')">
+                                    <span v-hasPermi="['pkt:service:restart']" class="action-wrapper">
+                                        <el-button type="primary" :icon="Refresh" size="small" @click="restart(service)" :disabled="!canOperate(service, 'restart')" :loading="isActionLoading(service.svcCode, 'restart')">
                                             重启
                                         </el-button>
                                     </span>
@@ -175,9 +175,12 @@ const formatTime = (value) => {
 }
 
 // 获取服务列表
-const getList = async ({ silent = false } = {}) => {
+const getList = async ({ silent = false, force = false } = {}) => {
     if (refreshPromise) {
-        return refreshPromise
+        if (!force) {
+            return refreshPromise
+        }
+        await refreshPromise
     }
     isRefreshing.value = true
     refreshPromise = (async () => {
@@ -227,7 +230,7 @@ const getActionTip = (service, action, actionName) => {
 const handleResponse = async (response, action) => {
     if (response?.code === 200) {
         ElMessage.success(`${action}成功`)
-        await getList({ silent: true })
+        await getList({ silent: true, force: true })
     } else {
         ElMessage.error(response?.msg || `${action}失败`)
     }
@@ -251,16 +254,15 @@ const executeOperation = async (service, action, actionName, requestFn, options 
     if (!canOperate(service, action)) {
         return
     }
-    try {
-        if (options.confirm) {
-            await confirmOperation(service, actionName)
-        }
-    } catch {
-        return
-    }
-
     setLoading(svcCode, action)
     try {
+        if (options.confirm) {
+            try {
+                await confirmOperation(service, actionName)
+            } catch {
+                return
+            }
+        }
         const response = await requestFn(svcCode, { customBaseURL: basUrl.value })
         await handleResponse(response, actionName)
     } catch (error) {
@@ -488,6 +490,13 @@ onUnmounted(() => {
             }
         }
     }
+}
+
+:global(.service-error-tooltip) {
+    max-width: min(420px, calc(100vw - 32px));
+    line-height: 1.5;
+    white-space: normal;
+    word-break: break-word;
 }
 
 // 响应式设计
