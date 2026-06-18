@@ -267,7 +267,9 @@ const executeOperation = async (service, action, actionName, requestFn, options 
         await handleResponse(response, actionName)
     } catch (error) {
         console.error(`${actionName}服务失败:`, error)
-        ElMessage.error(`${actionName}服务失败`)
+        if (!error?.response?.data?.msg) {
+            ElMessage.error(`${actionName}服务失败`)
+        }
     } finally {
         setLoading(svcCode, action, false)
     }
