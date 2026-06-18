@@ -1,17 +1,20 @@
 <template>
-    <div class="app-container service-manager-container">
+    <div class="app-container service-manager-container" v-loading="isRefreshing && !serviceList.length">
         <el-row :gutter="16" class="service-list">
             <el-col :xs="24" :sm="12" :md="12" :lg="8" :xl="6" v-for="(service, index) in serviceList" :key="service.svcCode || index" class="service-card-col">
                 <el-card shadow="hover" class="service-card">
                     <template #header>
                         <div class="card-header">
-                            <div><span class="service-name">{{ service.svcName }}</span></div>
-                            <div>
+                            <div class="service-title">
+                                <span class="service-name" :title="service.svcName">{{ service.svcName || service.svcCode }}</span>
+                                <span class="service-code">{{ service.svcCode }}</span>
+                            </div>
+                            <div class="status-stack">
                                 <el-tag :type="getStatusTagType(service.status)" size="small" class="status-tag">
-                                    <el-icon :class="getStatusIcon(service.status)" style="margin-right: 4px;">
+                                    <el-icon style="margin-right: 4px;">
                                         <component :is="getStatusIcon(service.status)" />
                                     </el-icon>
-                                    {{ statusList[service.status] }}
+                                    {{ statusList[service.status] || service.status || '未知' }}
                                 </el-tag>
                             </div>
                         </div>
@@ -20,32 +23,62 @@
                         <div class="image-container">
                             <img src="@/assets/images/img-server.png" alt="service icon" class="service-icon">
                         </div>
+                        <div class="service-meta">
+                            <div class="meta-row">
+                                <span class="meta-label">类型</span>
+                                <el-tag size="small" effect="plain">{{ service.serviceType || '--' }}</el-tag>
+                                <span class="meta-label">健康</span>
+                                <el-tag size="small" :type="getHealthTagType(service.healthy)" effect="plain">
+                                    {{ getHealthText(service.healthy) }}
+                                </el-tag>
+                            </div>
+                            <div class="meta-time">
+                                <span>启动 {{ formatTime(service.lastStartTime) }}</span>
+                                <span>停止 {{ formatTime(service.lastStopTime) }}</span>
+                            </div>
+                            <el-tooltip v-if="service.lastErrorMessage" :content="service.lastErrorMessage" placement="top" :show-after="200">
+                                <div class="error-message">
+                                    <el-icon><CircleCloseFilled /></el-icon>
+                                    <span>{{ service.lastErrorMessage }}</span>
+                                </div>
+                            </el-tooltip>
+                        </div>
                         <div class="actions">
                             <el-button-group>
-                                <el-tooltip content="启动" placement="top">
-                                    <el-button type="success" :icon="VideoPlay" size="small" @click="start(service.svcCode)" :disabled="service.status === 'RUNNING'" :loading="loadingStates[service.svcCode]?.start">
-                                        启动
-                                    </el-button>
+                                <el-tooltip :content="getActionTip(service, 'start', '启动')" placement="top">
+                                    <span class="action-wrapper">
+                                        <el-button v-hasPermi="['pkt:service:start']" type="success" :icon="VideoPlay" size="small" @click="start(service)" :disabled="!canOperate(service, 'start')" :loading="isActionLoading(service.svcCode, 'start')">
+                                            启动
+                                        </el-button>
+                                    </span>
                                 </el-tooltip>
-                                <el-tooltip content="停止" placement="top">
-                                    <el-button type="danger" :icon="VideoPause" size="small" @click="stop(service.svcCode)" :disabled="service.status == 'STOPPED'" :loading="loadingStates[service.svcCode]?.stop">
-                                        停止
-                                    </el-button>
+                                <el-tooltip :content="getActionTip(service, 'stop', '停止')" placement="top">
+                                    <span class="action-wrapper">
+                                        <el-button v-hasPermi="['pkt:service:stop']" type="danger" :icon="VideoPause" size="small" @click="stop(service)" :disabled="!canOperate(service, 'stop')" :loading="isActionLoading(service.svcCode, 'stop')">
+                                            停止
+                                        </el-button>
+                                    </span>
                                 </el-tooltip>
-                                <el-tooltip content="暂停" placement="top">
-                                    <el-button type="warning" :icon="Minus" size="small" @click="pause(service.svcCode)" :disabled="service.status !== 'RUNNING'" :loading="loadingStates[service.svcCode]?.pause">
-                                        暂停
-                                    </el-button>
+                                <el-tooltip :content="getActionTip(service, 'pause', '暂停')" placement="top">
+                                    <span class="action-wrapper">
+                                        <el-button v-hasPermi="['pkt:service:pause']" type="warning" :icon="Minus" size="small" @click="pause(service)" :disabled="!canOperate(service, 'pause')" :loading="isActionLoading(service.svcCode, 'pause')">
+                                            暂停
+                                        </el-button>
+                                    </span>
                                 </el-tooltip>
-                                <el-tooltip content="恢复" placement="top">
-                                    <el-button type="info" :icon="RefreshRight" size="small" @click="resume(service.svcCode)" :disabled="service.status !== 'PAUSED'" :loading="loadingStates[service.svcCode]?.resume">
-                                        恢复
-                                    </el-button>
+                                <el-tooltip :content="getActionTip(service, 'resume', '恢复')" placement="top">
+                                    <span class="action-wrapper">
+                                        <el-button v-hasPermi="['pkt:service:resume']" type="info" :icon="RefreshRight" size="small" @click="resume(service)" :disabled="!canOperate(service, 'resume')" :loading="isActionLoading(service.svcCode, 'resume')">
+                                            恢复
+                                        </el-button>
+                                    </span>
                                 </el-tooltip>
-                                <el-tooltip content="重启" placement="top">
-                                    <el-button type="primary" :icon="Refresh" size="small" @click="restart(service.svcCode)" :loading="loadingStates[service.svcCode]?.restart">
-                                        重启
-                                    </el-button>
+                                <el-tooltip :content="getActionTip(service, 'restart', '重启')" placement="top">
+                                    <span class="action-wrapper">
+                                        <el-button v-hasPermi="['pkt:service:restart']" type="primary" :icon="Refresh" size="small" @click="restart(service)" :disabled="!canOperate(service, 'restart')" :loading="isActionLoading(service.svcCode, 'restart')">
+                                            重启
+                                        </el-button>
+                                    </span>
                                 </el-tooltip>
                             </el-button-group>
                         </div>
@@ -58,7 +91,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
     VideoPlay,
     VideoPause,
@@ -77,9 +110,10 @@ import { serviceInfos, serviceStart, serviceStop, servicePause, serviceResume, s
 const basUrl = ref(window.global_config?.wcs || '')
 const serviceList = ref([])
 const loadingStates = reactive({})
+const isRefreshing = ref(false)
 const timer = ref(5000)
 let intervalId = null
-console.log(basUrl.value)
+let refreshPromise = null
 
 // 状态映射
 const statusList = {
@@ -120,15 +154,47 @@ const getStatusIcon = (status) => {
     return iconMap[status] || InfoFilled
 }
 
+// 健康状态映射
+const getHealthText = (healthy) => {
+    if (healthy === true) return '健康'
+    if (healthy === false) return '异常'
+    return '未知'
+}
+
+const getHealthTagType = (healthy) => {
+    if (healthy === true) return 'success'
+    if (healthy === false) return 'danger'
+    return 'info'
+}
+
+const formatTime = (value) => {
+    if (!value) return '--'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleString('zh-CN', { hour12: false })
+}
+
 // 获取服务列表
-const getList = async () => {
-    try {
-        const response = await serviceInfos({}, { customBaseURL: basUrl.value })
-        serviceList.value = response.data || []
-    } catch (error) {
-        console.error('获取服务列表失败:', error)
-        ElMessage.error('获取服务列表失败')
+const getList = async ({ silent = false } = {}) => {
+    if (refreshPromise) {
+        return refreshPromise
     }
+    isRefreshing.value = true
+    refreshPromise = (async () => {
+        try {
+            const response = await serviceInfos({}, { customBaseURL: basUrl.value })
+            serviceList.value = Array.isArray(response?.data) ? response.data : []
+        } catch (error) {
+            console.error('获取服务列表失败:', error)
+            if (!silent) {
+                ElMessage.error('获取服务列表失败')
+            }
+        } finally {
+            isRefreshing.value = false
+            refreshPromise = null
+        }
+    })()
+    return refreshPromise
 }
 
 // 设置加载状态
@@ -139,87 +205,98 @@ const setLoading = (svcCode, action, loading = true) => {
     loadingStates[svcCode][action] = loading
 }
 
+const isActionLoading = (svcCode, action) => {
+    return Boolean(loadingStates[svcCode]?.[action])
+}
+
+const isServiceBusy = (svcCode) => {
+    return Object.values(loadingStates[svcCode] || {}).some(Boolean)
+}
+
+const canOperate = (service, action) => {
+    return Boolean(service?.svcCode && service.capabilities?.[action] && !isServiceBusy(service.svcCode))
+}
+
+const getActionTip = (service, action, actionName) => {
+    if (isServiceBusy(service?.svcCode)) return '当前服务操作执行中'
+    if (!service?.capabilities?.[action]) return `后端未开放${actionName}能力`
+    return actionName
+}
+
 // 统一处理响应
-const handleResponse = (response, action) => {
-    if (response.data) {
+const handleResponse = async (response, action) => {
+    if (response?.code === 200) {
         ElMessage.success(`${action}成功`)
-        getList() // 操作成功后刷新列表
+        await getList({ silent: true })
     } else {
-        ElMessage.error(`${action}失败`)
+        ElMessage.error(response?.msg || `${action}失败`)
+    }
+}
+
+const confirmOperation = async (service, actionName) => {
+    const serviceName = service.svcName || service.svcCode
+    await ElMessageBox.confirm(
+        `确认${actionName}服务「${serviceName}」？该操作可能影响现场业务。`,
+        `${actionName}确认`,
+        {
+            confirmButtonText: `确认${actionName}`,
+            cancelButtonText: '取消',
+            type: 'warning'
+        }
+    )
+}
+
+const executeOperation = async (service, action, actionName, requestFn, options = {}) => {
+    const svcCode = service?.svcCode
+    if (!canOperate(service, action)) {
+        return
+    }
+    try {
+        if (options.confirm) {
+            await confirmOperation(service, actionName)
+        }
+    } catch {
+        return
+    }
+
+    setLoading(svcCode, action)
+    try {
+        const response = await requestFn(svcCode, { customBaseURL: basUrl.value })
+        await handleResponse(response, actionName)
+    } catch (error) {
+        console.error(`${actionName}服务失败:`, error)
+        ElMessage.error(`${actionName}服务失败`)
+    } finally {
+        setLoading(svcCode, action, false)
     }
 }
 
 // 服务操作
-const start = async (svcCode) => {
-    setLoading(svcCode, 'start')
-    try {
-        const response = await serviceStart({ svcCode }, { customBaseURL: basUrl.value })
-        handleResponse(response, '启动')
-    } catch (error) {
-        console.error('启动服务失败:', error)
-        ElMessage.error('启动服务失败')
-    } finally {
-        setLoading(svcCode, 'start', false)
-    }
+const start = (service) => {
+    executeOperation(service, 'start', '启动', serviceStart)
 }
 
-const stop = async (svcCode) => {
-    setLoading(svcCode, 'stop')
-    try {
-        const response = await serviceStop({ svcCode }, { customBaseURL: basUrl.value })
-        handleResponse(response, '停止')
-    } catch (error) {
-        console.error('停止服务失败:', error)
-        ElMessage.error('停止服务失败')
-    } finally {
-        setLoading(svcCode, 'stop', false)
-    }
+const stop = (service) => {
+    executeOperation(service, 'stop', '停止', serviceStop, { confirm: true })
 }
 
-const pause = async (svcCode) => {
-    setLoading(svcCode, 'pause')
-    try {
-        const response = await servicePause({ svcCode }, { customBaseURL: basUrl.value })
-        handleResponse(response, '暂停')
-    } catch (error) {
-        console.error('暂停服务失败:', error)
-        ElMessage.error('暂停服务失败')
-    } finally {
-        setLoading(svcCode, 'pause', false)
-    }
+const pause = (service) => {
+    executeOperation(service, 'pause', '暂停', servicePause)
 }
 
-const resume = async (svcCode) => {
-    setLoading(svcCode, 'resume')
-    try {
-        const response = await serviceResume({ svcCode }, { customBaseURL: basUrl.value })
-        handleResponse(response, '恢复')
-    } catch (error) {
-        console.error('恢复服务失败:', error)
-        ElMessage.error('恢复服务失败')
-    } finally {
-        setLoading(svcCode, 'resume', false)
-    }
+const resume = (service) => {
+    executeOperation(service, 'resume', '恢复', serviceResume)
 }
 
-const restart = async (svcCode) => {
-    setLoading(svcCode, 'restart')
-    try {
-        const response = await serviceRestart({ svcCode }, { customBaseURL: basUrl.value })
-        handleResponse(response, '重启')
-    } catch (error) {
-        console.error('重启服务失败:', error)
-        ElMessage.error('重启服务失败')
-    } finally {
-        setLoading(svcCode, 'restart', false)
-    }
+const restart = (service) => {
+    executeOperation(service, 'restart', '重启', serviceRestart, { confirm: true })
 }
 
 // 生命周期钩子
 onMounted(() => {
     getList()
     intervalId = setInterval(() => {
-        getList()
+        getList({ silent: true })
     }, timer.value)
 })
 
@@ -252,7 +329,7 @@ onUnmounted(() => {
     }
 }
 .service-card {
-    border-radius: 12px;
+    border-radius: 8px;
     transition: all 0.3s ease;
     border: 1px solid var(--el-border-color-light);
 
@@ -269,15 +346,36 @@ onUnmounted(() => {
         padding: 16px 10px;
         // border-bottom: 1px solid var(--el-border-color-lighter);
 
+        .service-title {
+            min-width: 0;
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 4px;
+            margin-right: 12px;
+        }
+
         .service-name {
             font-size: 16px;
             font-weight: 600;
             color: var(--el-text-color-primary);
-            flex: 1;
-            margin-right: 12px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .service-code {
+            max-width: 100%;
+            overflow: hidden;
+            color: var(--el-text-color-secondary);
+            font-size: 12px;
+            line-height: 1.2;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .status-stack {
+            flex-shrink: 0;
         }
 
         .status-tag {
@@ -315,6 +413,53 @@ onUnmounted(() => {
             object-fit: contain;
         }
 
+        .service-meta {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 0 10px;
+            color: var(--el-text-color-regular);
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .meta-label {
+            color: var(--el-text-color-secondary);
+        }
+
+        .meta-time {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 4px;
+            color: var(--el-text-color-secondary);
+        }
+
+        .error-message {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            max-width: 100%;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background-color: var(--el-color-danger-light-9);
+            color: var(--el-color-danger);
+
+            span {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+        }
+
         .actions {
             width: 100%;
             display: flex;
@@ -325,6 +470,10 @@ onUnmounted(() => {
                 flex-wrap: wrap;
                 gap: 8px;
                 justify-content: center;
+
+                .action-wrapper {
+                    display: inline-flex;
+                }
 
                 .el-button {
                     margin: 0;
@@ -348,7 +497,8 @@ onUnmounted(() => {
             flex-direction: column;
             align-items: flex-start;
             gap: 8px;
-            .service-name {
+            .service-title {
+                width: 100%;
                 margin-right: 0;
             }
         }
@@ -389,6 +539,11 @@ onUnmounted(() => {
                 .actions .el-button-group {
                     gap: 6px;
 
+                    .action-wrapper {
+                        flex: 1 1 72px;
+                        justify-content: center;
+                    }
+
                     .el-button {
                         font-size: 12px;
                         padding: 8px 12px;
@@ -404,7 +559,13 @@ onUnmounted(() => {
     .service-card-col {
         .service-card .card-body .actions .el-button-group {
             flex-direction: column;
+            align-items: center;
             width: 100%;
+
+            .action-wrapper {
+                width: 100%;
+                max-width: 120px;
+            }
 
             .el-button {
                 width: 100%;

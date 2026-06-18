@@ -1,62 +1,56 @@
-import request from '@/utils/request'// 查询生成表数据
+import request from '@/utils/request'
 
+const getCustomBaseURL = (config = {}) => config.customBaseURL
+
+const serviceOperation = (svcCode, action, config) => {
+  return request({
+    url: `/service/${encodeURIComponent(svcCode)}/${action}`,
+    method: 'post',
+    customBaseURL: getCustomBaseURL(config)
+  })
+}
 
 // 获取所有服务
-export function serviceInfos(query,config) {
+export function serviceInfos(query = {}, config = {}) {
   return request({
     url: '/service/infos',
     method: 'get',
     params: query,
-    customBaseURL:config.customBaseURL
+    customBaseURL: getCustomBaseURL(config)
+  })
+}
+
+// 获取服务状态
+export function serviceStatus(query = {}, config = {}) {
+  return request({
+    url: '/service/status',
+    method: 'get',
+    params: query,
+    customBaseURL: getCustomBaseURL(config)
   })
 }
 
 // 启动指定服务
-export function serviceStart(query,config) {
-    return request({
-      url: '/service/start',
-      method: 'get',
-      params: query,
-      customBaseURL:config.customBaseURL
-    })
-  }
+export function serviceStart(svcCode, config = {}) {
+  return serviceOperation(svcCode, 'start', config)
+}
 
-  // 停止指定服务
-export function serviceStop(query,config) {
-    return request({
-      url: '/service/stop',
-      method: 'get',
-      params: query,
-      customBaseURL:config.customBaseURL
-    })
-  }
-  
-  // 暂停指定服务
-export function servicePause(query,config) {
-    return request({
-      url: '/service/pause',
-      method: 'get',
-      params: query,
-      customBaseURL:config.customBaseURL
-    })
-  }
-  
-  // 恢复指定服务
-export function serviceResume(query,config) {
-    return request({
-      url: '/service/resume',
-      method: 'get',
-      params: query,
-      customBaseURL:config.customBaseURL
-    })
-  }
+// 停止指定服务
+export function serviceStop(svcCode, config = {}) {
+  return serviceOperation(svcCode, 'stop', config)
+}
 
-    // 重启指定服务
-export function serviceRestart(query,config) {
-    return request({
-      url: '/service/restart',
-      method: 'get',
-      params: query,
-      customBaseURL:config.customBaseURL
-    })
-  }
+// 暂停指定服务
+export function servicePause(svcCode, config = {}) {
+  return serviceOperation(svcCode, 'pause', config)
+}
+
+// 恢复指定服务
+export function serviceResume(svcCode, config = {}) {
+  return serviceOperation(svcCode, 'resume', config)
+}
+
+// 重启指定服务
+export function serviceRestart(svcCode, config = {}) {
+  return serviceOperation(svcCode, 'restart', config)
+}
