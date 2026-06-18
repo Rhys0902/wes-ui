@@ -222,7 +222,17 @@ const canOperate = (service, action) => {
 
 const getActionTip = (service, action, actionName) => {
     if (isServiceBusy(service?.svcCode)) return '当前服务操作执行中'
-    if (!service?.capabilities?.[action]) return `后端未开放${actionName}能力`
+    if (!service?.capabilities?.[action]) {
+        if (service?.serviceType === 'TLS' && ['pause', 'resume'].includes(action)) {
+            return 'TLS 服务不支持暂停/恢复'
+        }
+        if (action === 'resume') return '仅暂停状态可恢复'
+        if (action === 'pause') return '仅运行状态可暂停'
+        if (action === 'start') return '仅停止状态可启动'
+        if (action === 'stop') return '仅运行或暂停状态可停止'
+        if (action === 'restart') return '当前状态不可重启'
+        return `当前状态不可${actionName}`
+    }
     return actionName
 }
 
