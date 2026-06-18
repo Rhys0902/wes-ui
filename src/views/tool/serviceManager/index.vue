@@ -27,14 +27,26 @@
                             <div class="meta-row">
                                 <span class="meta-label">类型</span>
                                 <el-tag size="small" effect="plain">{{ service.serviceType || '--' }}</el-tag>
-                                <span class="meta-label">健康</span>
+                                <span class="meta-label">服务</span>
                                 <el-tag size="small" :type="getHealthTagType(service.healthy)" effect="plain">
                                     {{ getHealthText(service.healthy) }}
                                 </el-tag>
+                                <template v-if="isDeviceConnectionVisible(service)">
+                                    <span class="meta-label">连接</span>
+                                    <el-tooltip :content="getConnectionTip(service)" placement="top" :disabled="!service.deviceConnectionMessage">
+                                        <el-tag size="small" :type="getConnectionTagType(service.deviceConnectionStatus)" effect="plain">
+                                            {{ getConnectionText(service.deviceConnectionStatus) }}
+                                        </el-tag>
+                                    </el-tooltip>
+                                </template>
                             </div>
                             <div class="meta-time">
                                 <span>启动 {{ formatTime(service.lastStartTime) }}</span>
                                 <span>停止 {{ formatTime(service.lastStopTime) }}</span>
+                                <template v-if="isDeviceConnectionVisible(service)">
+                                    <span>连接 {{ formatTime(service.lastConnectedTime) }}</span>
+                                    <span>断开 {{ formatTime(service.lastDisconnectedTime) }}</span>
+                                </template>
                             </div>
                             <el-tooltip v-if="service.lastErrorMessage" :content="service.lastErrorMessage" placement="top" :show-after="200" popper-class="service-error-tooltip">
                                 <div class="error-message">
@@ -165,6 +177,36 @@ const getHealthTagType = (healthy) => {
     if (healthy === true) return 'success'
     if (healthy === false) return 'danger'
     return 'info'
+}
+
+const isDeviceConnectionVisible = (service) => {
+    return service?.deviceConnectionStatus && service.deviceConnectionStatus !== 'NOT_APPLICABLE'
+}
+
+const getConnectionText = (status) => {
+    const textMap = {
+        CONNECTING: '连接中',
+        CONNECTED: '已连接',
+        RECONNECTING: '重连中',
+        DISCONNECTED: '已断开',
+        NOT_APPLICABLE: '--'
+    }
+    return textMap[status] || '未知'
+}
+
+const getConnectionTagType = (status) => {
+    const typeMap = {
+        CONNECTING: 'warning',
+        CONNECTED: 'success',
+        RECONNECTING: 'warning',
+        DISCONNECTED: 'danger',
+        NOT_APPLICABLE: 'info'
+    }
+    return typeMap[status] || 'info'
+}
+
+const getConnectionTip = (service) => {
+    return service?.deviceConnectionMessage || getConnectionText(service?.deviceConnectionStatus)
 }
 
 const formatTime = (value) => {
