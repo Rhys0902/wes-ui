@@ -20,32 +20,63 @@
                         </div>
                     </template>
                     <div class="card-body">
-                        <div class="image-container">
-                            <img src="@/assets/images/img-server.png" alt="service icon" class="service-icon">
-                        </div>
-                        <div class="service-meta">
-                            <div class="meta-row">
-                                <span class="meta-label">类型</span>
-                                <el-tag size="small" effect="plain">{{ service.serviceType || '--' }}</el-tag>
-                                <span class="meta-label">服务</span>
-                                <el-tag size="small" :type="getHealthTagType(service.healthy)" effect="plain">
-                                    {{ getHealthText(service.healthy) }}
-                                </el-tag>
-                                <template v-if="isDeviceConnectionVisible(service)">
-                                    <span class="meta-label">连接</span>
+                        <div class="service-visual">
+                            <div :class="['image-container', getServiceTypeClass(service.serviceType)]">
+                                <el-icon class="service-type-icon">
+                                    <component :is="getServiceTypeIcon(service.serviceType)" />
+                                </el-icon>
+                            </div>
+                            <div class="visual-summary">
+                                <span class="visual-title">{{ getServiceTypeText(service.serviceType) }}</span>
+                                <span class="visual-desc">{{ getServiceSummary(service) }}</span>
+                            </div>
+                            <div class="visual-badges">
+                                <div class="visual-badge">
+                                    <span class="visual-badge-label">类型</span>
+                                    <el-tag size="small" effect="plain">{{ service.serviceType || '--' }}</el-tag>
+                                </div>
+                                <div class="visual-badge">
+                                    <span class="visual-badge-label">服务</span>
+                                    <el-tag size="small" :type="getHealthTagType(service.healthy)" effect="plain">
+                                        {{ getHealthText(service.healthy) }}
+                                    </el-tag>
+                                </div>
+                                <div v-if="isDeviceConnectionVisible(service)" class="visual-badge">
+                                    <span class="visual-badge-label">连接</span>
                                     <el-tooltip :content="getConnectionTip(service)" placement="top" :disabled="!service.deviceConnectionMessage">
                                         <el-tag size="small" :type="getConnectionTagType(service.deviceConnectionStatus)" effect="plain">
                                             {{ getConnectionText(service.deviceConnectionStatus) }}
                                         </el-tag>
                                     </el-tooltip>
-                                </template>
+                                </div>
+                                <el-tooltip v-if="isPointDetailVisible(service)" content="查看PLC点位快照" placement="top">
+                                    <span v-hasPermi="['plc:pktService:list']" class="point-entry-wrapper">
+                                        <el-button class="point-entry" link type="primary" :icon="InfoFilled" size="small" @click="showPointDetail(service)" :loading="isPointDetailLoading(service)">
+                                            点位快照
+                                        </el-button>
+                                    </span>
+                                </el-tooltip>
                             </div>
+                        </div>
+                        <div class="service-meta">
                             <div class="meta-time">
-                                <span>启动 {{ formatTime(service.lastStartTime) }}</span>
-                                <span>停止 {{ formatTime(service.lastStopTime) }}</span>
+                                <div class="time-item">
+                                    <span class="time-label">最近启动</span>
+                                    <span class="time-value">{{ formatTime(service.lastStartTime) }}</span>
+                                </div>
+                                <div class="time-item">
+                                    <span class="time-label">最近停止</span>
+                                    <span class="time-value">{{ formatTime(service.lastStopTime) }}</span>
+                                </div>
                                 <template v-if="isDeviceConnectionVisible(service)">
-                                    <span>连接 {{ formatTime(service.lastConnectedTime) }}</span>
-                                    <span>断开 {{ formatTime(service.lastDisconnectedTime) }}</span>
+                                    <div class="time-item">
+                                        <span class="time-label">最近连接</span>
+                                        <span class="time-value">{{ formatTime(service.lastConnectedTime) }}</span>
+                                    </div>
+                                    <div class="time-item">
+                                        <span class="time-label">最近断开</span>
+                                        <span class="time-value">{{ formatTime(service.lastDisconnectedTime) }}</span>
+                                    </div>
                                 </template>
                             </div>
                             <el-tooltip v-if="service.lastErrorMessage" :content="service.lastErrorMessage" placement="top" :show-after="200" popper-class="service-error-tooltip">
@@ -58,35 +89,35 @@
                         <div class="actions">
                             <el-button-group>
                                 <el-tooltip :content="getActionTip(service, 'start', '启动')" placement="top">
-                                    <span v-hasPermi="['pkt:service:start']" class="action-wrapper">
+                                    <span v-hasPermi="['plc:pktService:operate']" class="action-wrapper">
                                         <el-button type="success" :icon="VideoPlay" size="small" @click="start(service)" :disabled="!canOperate(service, 'start')" :loading="isActionLoading(service.svcCode, 'start')">
                                             启动
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'stop', '停止')" placement="top">
-                                    <span v-hasPermi="['pkt:service:stop']" class="action-wrapper">
+                                    <span v-hasPermi="['plc:pktService:operate']" class="action-wrapper">
                                         <el-button type="danger" :icon="VideoPause" size="small" @click="stop(service)" :disabled="!canOperate(service, 'stop')" :loading="isActionLoading(service.svcCode, 'stop')">
                                             停止
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'pause', '暂停')" placement="top">
-                                    <span v-hasPermi="['pkt:service:pause']" class="action-wrapper">
+                                    <span v-hasPermi="['plc:pktService:operate']" class="action-wrapper">
                                         <el-button type="warning" :icon="Minus" size="small" @click="pause(service)" :disabled="!canOperate(service, 'pause')" :loading="isActionLoading(service.svcCode, 'pause')">
                                             暂停
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'resume', '恢复')" placement="top">
-                                    <span v-hasPermi="['pkt:service:resume']" class="action-wrapper">
+                                    <span v-hasPermi="['plc:pktService:operate']" class="action-wrapper">
                                         <el-button type="info" :icon="RefreshRight" size="small" @click="resume(service)" :disabled="!canOperate(service, 'resume')" :loading="isActionLoading(service.svcCode, 'resume')">
                                             恢复
                                         </el-button>
                                     </span>
                                 </el-tooltip>
                                 <el-tooltip :content="getActionTip(service, 'restart', '重启')" placement="top">
-                                    <span v-hasPermi="['pkt:service:restart']" class="action-wrapper">
+                                    <span v-hasPermi="['plc:pktService:operate']" class="action-wrapper">
                                         <el-button type="primary" :icon="Refresh" size="small" @click="restart(service)" :disabled="!canOperate(service, 'restart')" :loading="isActionLoading(service.svcCode, 'restart')">
                                             重启
                                         </el-button>
@@ -98,11 +129,69 @@
                 </el-card>
             </el-col>
         </el-row>
+        <el-drawer v-model="pointDrawerVisible" :title="pointDrawerTitle" size="920px" append-to-body class="point-drawer-panel">
+            <div class="point-drawer" v-loading="pointLoading">
+                <div class="point-overview">
+                    <div class="point-service">
+                        <span class="overview-label">服务</span>
+                        <strong>{{ selectedService?.svcName || selectedService?.svcCode || '--' }}</strong>
+                        <span>{{ selectedService?.svcCode || '--' }}</span>
+                    </div>
+                    <div class="overview-item">
+                        <span class="overview-label">连接</span>
+                        <el-tag size="small" :type="getConnectionTagType(selectedService?.deviceConnectionStatus)" effect="plain">
+                            {{ getConnectionText(selectedService?.deviceConnectionStatus) }}
+                        </el-tag>
+                    </div>
+                    <div class="overview-item">
+                        <span class="overview-label">最近采样</span>
+                        <strong>{{ formatTime(pointSnapshot?.lastSampleTime) }}</strong>
+                    </div>
+                    <div class="overview-item compact">
+                        <span class="overview-label">点位组</span>
+                        <strong>{{ pointSnapshot?.groupCount ?? '--' }}</strong>
+                    </div>
+                    <div class="overview-item compact">
+                        <span class="overview-label">点位数</span>
+                        <strong>{{ pointSnapshot?.pointCount ?? '--' }}</strong>
+                    </div>
+                </div>
+                <div class="point-toolbar">
+                    <span class="point-hint">展示最近一次轮询成功后的只读快照，不会触发额外 PLC 读取。</span>
+                    <el-button size="small" :icon="Refresh" @click="loadPointSnapshot()" :loading="pointLoading">刷新</el-button>
+                </div>
+                <el-table :data="pointRows" border stripe size="small" class="point-table" empty-text="暂无点位快照" :fit="false">
+                    <el-table-column prop="groupName" label="点位组" width="150" show-overflow-tooltip />
+                    <el-table-column prop="code" label="点位编码" width="160" show-overflow-tooltip />
+                    <el-table-column prop="name" label="名称" width="190" show-overflow-tooltip />
+                    <el-table-column prop="address" label="地址" width="190" show-overflow-tooltip />
+                    <el-table-column prop="valueType" label="类型" width="90" />
+                    <el-table-column label="当前值" width="130" show-overflow-tooltip>
+                        <template #default="{ row }">
+                            <span class="point-value">{{ formatPointValue(row.value) }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="状态" width="90">
+                        <template #default="{ row }">
+                            <el-tag size="small" :type="getPointStatusTagType(row.status)" effect="plain">
+                                {{ getPointStatusText(row.status) }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="采样时间" width="170">
+                        <template #default="{ row }">
+                            {{ formatTime(row.lastSampleTime) }}
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="message" label="说明" width="160" show-overflow-tooltip />
+                </el-table>
+            </div>
+        </el-drawer>
     </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { computed, ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
     VideoPlay,
@@ -114,18 +203,37 @@ import {
     CircleCloseFilled,
     WarningFilled,
     InfoFilled,
-    ArrowRight
+    ArrowRight,
+    Cpu,
+    Lock,
+    Operation,
+    Van,
+    Box
 } from '@element-plus/icons-vue'
-import { serviceInfos, serviceStart, serviceStop, servicePause, serviceResume, serviceRestart } from "@/api/tool/serviceManager"
+import { serviceInfos, servicePoints, serviceStart, serviceStop, servicePause, serviceResume, serviceRestart } from "@/api/tool/serviceManager"
 
 // 基础配置
-const basUrl = ref(window.global_config?.wcs || '')
 const serviceList = ref([])
 const loadingStates = reactive({})
 const isRefreshing = ref(false)
+const pointDrawerVisible = ref(false)
+const pointLoading = ref(false)
+const selectedService = ref(null)
+const pointSnapshot = ref(null)
 const timer = ref(5000)
 let intervalId = null
 let refreshPromise = null
+
+const unwrapResponseData = (response) => {
+    if (response && typeof response === 'object' && Object.prototype.hasOwnProperty.call(response, 'data')) {
+        return response.data
+    }
+    return response
+}
+
+const unwrapResponseMessage = (response) => {
+    return response?.msg
+}
 
 // 状态映射
 const statusList = {
@@ -136,6 +244,42 @@ const statusList = {
     'PAUSED': '已暂停',
     'STOPPING': '正在停止',
     'STOPPED': '已停止'
+}
+
+// 服务类型视觉映射
+const serviceTypeTextMap = {
+    PLC: 'PLC 设备',
+    TLS: 'TLS 链路',
+    CRANE: '天车服务',
+    AGV: 'AGV 服务',
+    OTHER: '通用服务'
+}
+
+const serviceTypeIconMap = {
+    PLC: Cpu,
+    TLS: Lock,
+    CRANE: Operation,
+    AGV: Van,
+    OTHER: Box
+}
+
+const getServiceTypeText = (type) => {
+    return serviceTypeTextMap[type] || type || '服务'
+}
+
+const getServiceTypeIcon = (type) => {
+    return serviceTypeIconMap[type] || Box
+}
+
+const getServiceTypeClass = (type) => {
+    return `type-${String(type || 'OTHER').toLowerCase()}`
+}
+
+const getServiceSummary = (service) => {
+    if (isDeviceConnectionVisible(service)) {
+        return `设备${getConnectionText(service.deviceConnectionStatus)}`
+    }
+    return `服务${getHealthText(service.healthy)}`
 }
 
 // 状态标签类型
@@ -209,11 +353,85 @@ const getConnectionTip = (service) => {
     return service?.deviceConnectionMessage || getConnectionText(service?.deviceConnectionStatus)
 }
 
+const isPointDetailVisible = (service) => {
+    return service?.serviceType === 'PLC'
+}
+
+const pointDrawerTitle = computed(() => {
+    const serviceName = selectedService.value?.svcName || selectedService.value?.svcCode || 'PLC服务'
+    return `${serviceName} 点位快照`
+})
+
+const pointRows = computed(() => {
+    return (pointSnapshot.value?.groups || []).flatMap(group => {
+        return (group.points || []).map(point => ({
+            ...point,
+            groupCode: group.code,
+            groupName: group.name,
+            groupLastSampleTime: group.lastSampleTime
+        }))
+    })
+})
+
 const formatTime = (value) => {
     if (!value) return '--'
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value
     return date.toLocaleString('zh-CN', { hour12: false })
+}
+
+const formatPointValue = (value) => {
+    if (value === null || value === undefined) return '--'
+    if (Array.isArray(value)) return value.join(', ')
+    if (typeof value === 'object') return JSON.stringify(value)
+    return String(value)
+}
+
+const getPointStatusText = (status) => {
+    const textMap = {
+        OK: '正常',
+        WAITING: '等待'
+    }
+    return textMap[status] || status || '未知'
+}
+
+const getPointStatusTagType = (status) => {
+    const typeMap = {
+        OK: 'success',
+        WAITING: 'info'
+    }
+    return typeMap[status] || 'danger'
+}
+
+const isPointDetailLoading = (service) => {
+    return pointLoading.value && selectedService.value?.svcCode === service?.svcCode
+}
+
+const showPointDetail = async (service) => {
+    selectedService.value = service
+    pointSnapshot.value = null
+    pointDrawerVisible.value = true
+    await loadPointSnapshot(service)
+}
+
+const loadPointSnapshot = async (service = selectedService.value) => {
+    if (!service?.svcCode) return
+    pointLoading.value = true
+    try {
+        const response = await servicePoints(service.svcCode)
+        if (!response || response.code === 200 || response.code === undefined) {
+            pointSnapshot.value = unwrapResponseData(response)
+        } else {
+            ElMessage.error(unwrapResponseMessage(response) || '获取点位快照失败')
+        }
+    } catch (error) {
+        console.error('获取点位快照失败:', error)
+        if (!error?.response?.data?.msg) {
+            ElMessage.error('获取点位快照失败')
+        }
+    } finally {
+        pointLoading.value = false
+    }
 }
 
 // 获取服务列表
@@ -227,8 +445,9 @@ const getList = async ({ silent = false, force = false } = {}) => {
     isRefreshing.value = true
     refreshPromise = (async () => {
         try {
-            const response = await serviceInfos({}, { customBaseURL: basUrl.value })
-            serviceList.value = Array.isArray(response?.data) ? response.data : []
+            const response = await serviceInfos()
+            const services = unwrapResponseData(response)
+            serviceList.value = Array.isArray(services) ? services : []
         } catch (error) {
             console.error('获取服务列表失败:', error)
             if (!silent) {
@@ -280,11 +499,11 @@ const getActionTip = (service, action, actionName) => {
 
 // 统一处理响应
 const handleResponse = async (response, action) => {
-    if (response?.code === 200) {
+    if (!response || response.code === 200 || response.code === undefined) {
         ElMessage.success(`${action}成功`)
         await getList({ silent: true, force: true })
     } else {
-        ElMessage.error(response?.msg || `${action}失败`)
+        ElMessage.error(unwrapResponseMessage(response) || `${action}失败`)
     }
 }
 
@@ -315,7 +534,7 @@ const executeOperation = async (service, action, actionName, requestFn, options 
                 return
             }
         }
-        const response = await requestFn(svcCode, { customBaseURL: basUrl.value })
+        const response = await requestFn(svcCode)
         await handleResponse(response, actionName)
     } catch (error) {
         console.error(`${actionName}服务失败:`, error)
@@ -375,6 +594,7 @@ onUnmounted(() => {
 }
 
 .service-card-col {
+    display: flex;
     margin-bottom: 16px;
 }
 
@@ -385,9 +605,26 @@ onUnmounted(() => {
     }
 }
 .service-card {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     border-radius: 8px;
     transition: all 0.3s ease;
     border: 1px solid var(--el-border-color-light);
+
+    :deep(.el-card__body) {
+        flex: 1;
+        display: flex;
+        padding: 15px 0 !important;
+    }
+
+    :deep(.el-card__header) {
+        padding: 0 !important;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+        background: linear-gradient(180deg, var(--el-bg-color), var(--el-fill-color-extra-light));
+    }
 
     &:hover {
         transform: translateY(-4px);
@@ -399,21 +636,22 @@ onUnmounted(() => {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 16px 10px;
-        // border-bottom: 1px solid var(--el-border-color-lighter);
+        min-height: 82px;
+        padding: 16px 22px;
 
         .service-title {
             min-width: 0;
             display: flex;
             flex: 1;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
             margin-right: 12px;
         }
 
         .service-name {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 600;
+            line-height: 1.2;
             color: var(--el-text-color-primary);
             overflow: hidden;
             text-overflow: ellipsis;
@@ -424,7 +662,7 @@ onUnmounted(() => {
             max-width: 100%;
             overflow: hidden;
             color: var(--el-text-color-secondary);
-            font-size: 12px;
+            font-size: 13px;
             line-height: 1.2;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -435,6 +673,8 @@ onUnmounted(() => {
         }
 
         .status-tag {
+            height: 28px;
+            padding: 0 12px;
             flex-shrink: 0;
             font-weight: 500;
             border-radius: 6px;
@@ -442,39 +682,128 @@ onUnmounted(() => {
     }
 
     .card-body {
-        padding: 24px 10px;
+        flex: 1;
+        width: 100%;
+        padding: 14px 12px;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 20px;
+        align-items: stretch;
+        gap: 10px;
+
+        .service-visual {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            min-height: 58px;
+            padding: 10px 12px;
+            border: 1px solid var(--el-border-color-extra-light);
+            border-radius: 6px;
+            background: linear-gradient(180deg, var(--el-fill-color-extra-light), var(--el-bg-color));
+        }
 
         .image-container {
-            padding: 16px;
+            flex: 0 0 40px;
+            padding: 8px;
             background: linear-gradient(
                 135deg,
                 var(--el-color-primary-light-9),
                 var(--el-color-primary-light-8)
             );
-            border-radius: 50%;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 80px;
-            height: 80px;
+            width: 40px;
+            height: 40px;
+            color: var(--el-color-primary);
+
+            &.type-tls {
+                background: linear-gradient(135deg, var(--el-color-success-light-9), var(--el-color-success-light-8));
+                color: var(--el-color-success);
+            }
+
+            &.type-crane {
+                background: linear-gradient(135deg, var(--el-color-warning-light-9), var(--el-color-warning-light-8));
+                color: var(--el-color-warning);
+            }
+
+            &.type-agv {
+                background: linear-gradient(135deg, var(--el-color-info-light-9), var(--el-color-info-light-8));
+                color: var(--el-color-info);
+            }
+
+            &.type-other {
+                background: linear-gradient(135deg, var(--el-fill-color-light), var(--el-fill-color));
+                color: var(--el-text-color-secondary);
+            }
         }
 
-        .service-icon {
-            width: 48px;
-            height: 48px;
-            object-fit: contain;
+        .service-type-icon {
+            font-size: 22px;
+        }
+
+        .visual-summary {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            flex: 1;
+            gap: 1px;
+            min-width: 0;
+            max-width: 240px;
+        }
+
+        .visual-title {
+            color: var(--el-text-color-primary);
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.25;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .visual-desc {
+            color: var(--el-text-color-secondary);
+            font-size: 12px;
+            line-height: 1.25;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .visual-badges {
+            display: flex;
+            flex: 1 1 260px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px 8px;
+            min-width: 180px;
+        }
+
+        .visual-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            min-width: 0;
+            padding: 2px 0;
+            white-space: nowrap;
+        }
+
+        .visual-badge-label {
+            color: var(--el-text-color-secondary);
+            font-size: 12px;
         }
 
         .service-meta {
+            flex: 1;
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            padding: 0 10px;
+            gap: 6px;
+            padding: 0 4px;
             color: var(--el-text-color-regular);
             font-size: 12px;
             line-height: 1.4;
@@ -487,15 +816,54 @@ onUnmounted(() => {
             gap: 6px;
         }
 
+        .point-entry-wrapper {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 2px;
+        }
+
+        .point-entry {
+            height: 22px;
+            padding: 0 2px;
+            font-size: 12px;
+            font-weight: 500;
+            vertical-align: middle;
+
+            :deep(.el-icon) {
+                margin-right: 3px;
+            }
+        }
+
         .meta-label {
             color: var(--el-text-color-secondary);
         }
 
         .meta-time {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 4px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 5px;
+        }
+
+        .time-item {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: 2px;
+            padding: 4px 7px;
+            border-radius: 5px;
+            background-color: var(--el-fill-color-lighter);
+        }
+
+        .time-label {
             color: var(--el-text-color-secondary);
+        }
+
+        .time-value {
+            overflow: hidden;
+            color: var(--el-text-color-regular);
+            font-variant-numeric: tabular-nums;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .error-message {
@@ -520,21 +888,27 @@ onUnmounted(() => {
             width: 100%;
             display: flex;
             justify-content: center;
+            margin-top: auto;
+            padding-top: 0;
 
             .el-button-group {
                 display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
+                flex-wrap: nowrap;
+                gap: 6px;
                 justify-content: center;
+                max-width: 100%;
 
                 .action-wrapper {
                     display: inline-flex;
+                    flex: 0 0 auto;
                 }
 
                 .el-button {
                     margin: 0;
                     border-radius: 6px;
-                    min-width: 60px;
+                    min-width: 56px;
+                    height: 28px;
+                    padding: 7px 10px;
 
                     &:focus-visible {
                         outline: 2px solid var(--el-color-primary);
@@ -551,6 +925,127 @@ onUnmounted(() => {
     line-height: 1.5;
     white-space: normal;
     word-break: break-word;
+}
+
+:global(.point-drawer-panel) {
+    max-width: calc(100vw - 32px);
+
+    .el-drawer__header {
+        margin-bottom: 0;
+        padding: 22px 24px 14px;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+        color: var(--el-text-color-primary);
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .el-drawer__body {
+        padding: 18px 24px 24px;
+    }
+}
+
+.point-drawer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.point-overview {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.4fr) minmax(120px, 0.55fr) minmax(190px, 0.95fr) repeat(2, minmax(82px, 0.35fr));
+    gap: 8px;
+}
+
+.point-service,
+.overview-item {
+    min-width: 0;
+    min-height: 64px;
+    padding: 9px 12px;
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 6px;
+    background-color: var(--el-fill-color-extra-light);
+}
+
+.point-service,
+.overview-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+
+    strong {
+        min-width: 0;
+        overflow: hidden;
+        color: var(--el-text-color-primary);
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.25;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+.point-service span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.overview-item.compact {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 3px;
+
+    strong {
+        color: var(--el-color-primary);
+        font-size: 18px;
+        line-height: 1.05;
+    }
+}
+
+.overview-label {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.point-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.point-hint {
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.point-table {
+    width: 100%;
+
+    :deep(.el-table__header th) {
+        background-color: var(--el-fill-color-light);
+        color: var(--el-text-color-regular);
+        font-weight: 600;
+    }
+
+    :deep(.el-table__cell) {
+        padding: 8px 0;
+    }
+}
+
+.point-value {
+    color: var(--el-text-color-primary);
+    font-family: Consolas, Monaco, "Courier New", monospace;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
 }
 
 // 响应式设计
@@ -573,43 +1068,79 @@ onUnmounted(() => {
         padding: 16px;
     }
 
+    .point-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .point-overview {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .point-service {
+        grid-column: 1 / -1;
+    }
+
     .service-card-col {
         width: 100%;
 
         .service-card {
             .card-header {
-                padding: 12px 12px;
+                min-height: 72px;
+                padding: 12px 14px;
                 .service-name {
-                    font-size: 15px;
+                    font-size: 16px;
                 }
             }
 
             .card-body {
-                padding: 20px 10px;
-                gap: 16px;
+                padding: 12px 10px;
+                gap: 10px;
 
-                .image-container {
-                    width: 60px;
-                    height: 60px;
-                    padding: 12px;
+                .service-visual {
+                    flex-wrap: wrap;
+                    min-height: 48px;
+                    padding: 8px;
                 }
 
-                .service-icon {
-                    width: 36px;
-                    height: 36px;
+                .visual-summary {
+                    max-width: calc(100% - 50px);
+                }
+
+                .visual-badges {
+                    flex-basis: 100%;
+                    justify-content: flex-start;
+                    min-width: 0;
+                }
+
+                .image-container {
+                    flex-basis: 38px;
+                    width: 38px;
+                    height: 38px;
+                    padding: 7px;
+                }
+
+                .service-type-icon {
+                    font-size: 20px;
+                }
+
+                .meta-time {
+                    grid-template-columns: 1fr;
                 }
 
                 .actions .el-button-group {
+                    flex-wrap: nowrap;
                     gap: 6px;
 
                     .action-wrapper {
-                        flex: 1 1 72px;
+                        flex: 0 0 auto;
                         justify-content: center;
                     }
 
                     .el-button {
                         font-size: 12px;
-                        padding: 8px 12px;
+                        height: 30px;
+                        padding: 7px 10px;
                         min-width: 50px;
                     }
                 }
