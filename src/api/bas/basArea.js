@@ -44,9 +44,10 @@ export function delBasArea(id) {
 }
 
 // 查询库区下拉框列表
-export function dropDownListArea() {
+export function dropDownListArea(query) {
     return request({
       url: '/bas/dropDownList/area',
-      method: 'get'
+      method: 'get',
+      params: query
     })
   }
