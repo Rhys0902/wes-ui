@@ -21,18 +21,18 @@
                 <el-table-column label="分配数量" align="center" prop="allocatedQty" />
                 <el-table-column label="单位" align="center" prop="unit" />
                 <!-- <el-table-column label="批次编码" align="center" prop="batchCode" /> -->
+                <el-table-column label="创建人" align="center" prop="createBy" />
                 <el-table-column label="创建时间" align="center" prop="createTime">
                     <template #default="scope">
                         <span>{{ parseTime(scope.row.createTime) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="创建人" align="center" prop="createBy" />
+                <el-table-column label="更新人" align="center" prop="updateBy" />
                 <el-table-column label="更新时间" align="center" prop="updateTime" width="180">
                     <template #default="scope">
                         <span>{{ parseTime(scope.row.updateTime) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="更新人" align="center" prop="updateBy" />
             </el-table>
         </el-card>
         <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />

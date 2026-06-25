@@ -18,17 +18,17 @@
                         </el-select>
                     </el-form-item>
                     <span v-show="showAllSearchTop">
-                        <el-form-item label="创建时间" style="width: 320px">
-                            <el-date-picker v-model="daterangeCreateTime" value-format="YYYY-MM-DD HH:mm:ss" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" :default-time="[new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]"></el-date-picker>
-                        </el-form-item>
                         <el-form-item label="创建人" prop="createBy">
                             <el-input v-model="queryParams.createBy" placeholder="请输入创建人" clearable @keyup.enter="handleQuery" />
                         </el-form-item>
-                        <el-form-item label="更新时间" style="width: 320px">
-                            <el-date-picker v-model="daterangeUpdateTime" value-format="YYYY-MM-DD HH:mm:ss" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" :default-time="[new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]"></el-date-picker>
+                        <el-form-item label="创建时间" style="width: 320px">
+                            <el-date-picker v-model="daterangeCreateTime" value-format="YYYY-MM-DD HH:mm:ss" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" :default-time="[new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]"></el-date-picker>
                         </el-form-item>
                         <el-form-item label="更新人" prop="updateBy">
                             <el-input v-model="queryParams.updateBy" placeholder="请输入更新人" clearable @keyup.enter="handleQuery" />
+                        </el-form-item>
+                        <el-form-item label="更新时间" style="width: 320px">
+                            <el-date-picker v-model="daterangeUpdateTime" value-format="YYYY-MM-DD HH:mm:ss" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" :default-time="[new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]"></el-date-picker>
                         </el-form-item>
                     </span>
                     <el-form-item>
@@ -73,18 +73,18 @@
                         <dict-tag :options="sys_yes_no" :value="scope.row.handlerCheck" sortable="custom" />
                     </template>
                 </el-table-column>
+                <el-table-column label="创建人" align="center" width="150" prop="createBy" sortable="custom" />
                 <el-table-column label="创建时间" align="center" prop="createTime" width="180" sortable="custom">
                     <template #default="scope">
                         <span>{{ parseTime(scope.row.createTime) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="创建人" align="center" width="150" prop="createBy" sortable="custom" />
+                <el-table-column label="更新人" align="center" width="150" prop="updateBy" sortable="custom" />
                 <el-table-column label="更新时间" align="center" prop="updateTime" width="180" sortable="custom">
                     <template #default="scope">
                         <span>{{ parseTime(scope.row.updateTime) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="更新人" align="center" width="150" prop="updateBy" sortable="custom" />
                 <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200px" fixed="right">
                     <template #default="scope">
                         <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['bas:basDocType:edit']">修改</el-button>

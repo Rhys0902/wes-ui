@@ -12,18 +12,18 @@
                 <el-table-column label="库位编码" align="center" width="130" prop="locCode" />
                 <el-table-column label="货架编码" align="center" width="130" prop="shelfCode" />
                 <el-table-column label="区域编码" align="center" width="130" prop="areaCode" />
+                <el-table-column label="创建人" align="center" prop="createBy" width="150" />
                 <el-table-column label="创建时间" align="center" prop="createTime" width="180">
                     <template #default="scope">
                         <span>{{ parseTime(scope.row.createTime) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="创建人" align="center" prop="createBy" width="150" />
+                <el-table-column label="更新人" align="center" prop="updateBy" width="150" />
                 <el-table-column label="更新时间" align="center" prop="updateTime" width="180">
                     <template #default="scope">
                         <span>{{ parseTime(scope.row.updateTime) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="更新人" align="center" prop="updateBy" width="150" />
             </el-table>
         </el-card>
         <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />

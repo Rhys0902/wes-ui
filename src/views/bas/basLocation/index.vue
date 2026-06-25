@@ -28,9 +28,10 @@
                         <el-form-item label="优先级" prop="priority">
                             <el-input v-model="queryParams.priority" placeholder="请输入优先级" clearable @keyup.enter="handleQuery" />
                         </el-form-item>
-                        <!-- <el-form-item label="映射库位1" prop="reflectionCode01">
+                        <el-form-item label="映射库位1" prop="reflectionCode01">
                             <el-input v-model="queryParams.reflectionCode01" placeholder="请输入映射库位1" clearable @keyup.enter="handleQuery" />
                         </el-form-item>
+                        <!--
                         <el-form-item label="映射库位2" prop="reflectionCode02">
                             <el-input v-model="queryParams.reflectionCode02" placeholder="请输入映射库位2" clearable @keyup.enter="handleQuery" />
                         </el-form-item>
@@ -127,7 +128,7 @@
             </el-row>
 
             <el-table v-loading="loading" :data="basLocationList" @selection-change="handleSelectionChange" :default-sort="{prop: 'id', order: 'ascending'}" @sort-change="handleSortChange">
-                <el-table-column type="selection" width="55" align="center" />
+              <el-table-column type="selection" width="55" align="center" />
                 <el-table-column label="主键ID" align="center" prop="id" v-if="false" />
                 <el-table-column label="库位编码" align="center" prop="locationCode" width="120" sortable="custom" />
                 <el-table-column label="库位状态" width="150" align="center" prop="locationStatus" sortable="custom">
@@ -147,7 +148,8 @@
                 </el-table-column>
                 <el-table-column label="库位信息" width="180" align="center" prop="information" sortable="custom" :show-overflow-tooltip="true" />
                 <el-table-column label="优先级" align="center" prop="priority" width="150" sortable="custom" />
-                <!-- <el-table-column label="映射库位1" align="center" prop="reflectionCode01"  sortable="custom"  />
+                <el-table-column label="映射库位1" align="center" prop="reflectionCode01"  sortable="custom"  />
+                <!--
                 <el-table-column label="映射库位2" align="center" prop="reflectionCode02"  sortable="custom"  />
                 <el-table-column label="映射库位3" align="center" prop="reflectionCode03"  sortable="custom"  />-->
                 <!-- <el-table-column label="长度" align="center" prop="length" sortable="custom" />
@@ -163,23 +165,23 @@
                 <el-table-column label="入库侧Y坐标" align="center" prop="inY"  sortable="custom"  />
                 <el-table-column label="出库侧X坐标" align="center" prop="outX"  sortable="custom"  />
                 <el-table-column label="出库侧Y坐标" align="center" prop="outY"  sortable="custom"  />-->
+                <el-table-column label="创建人" align="center" prop="createBy" width="150" sortable="custom" />
                 <el-table-column label="创建时间" align="center" prop="createTime" width="180" sortable="custom">
                     <template #default="scope">
                         <span>{{ parseTime(scope.row.createTime) }}</span>
                     </template>
                 </el-table-column>
-                <el-table-column label="创建人" align="center" prop="createBy" width="150" sortable="custom" />
-                <el-table-column label="更新时间" align="center" prop="updateTime" width="180" sortable="custom">
-                    <template #default="scope">
-                        <span>{{ parseTime(scope.row.updateTime) }}</span>
-                    </template>
-                </el-table-column>
                 <el-table-column label="更新人" align="center" prop="updateBy" width="150" sortable="custom" />
+                <el-table-column label="更新时间" align="center" prop="updateTime" width="180" sortable="custom">
+                  <template #default="scope">
+                    <span>{{ parseTime(scope.row.updateTime) }}</span>
+                  </template>
+                </el-table-column>
                 <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200px" fixed="right">
-                    <template #default="scope">
-                        <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['bas:basLocation:edit']">修改</el-button>
-                        <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['bas:basLocation:remove']">删除</el-button>
-                    </template>
+                  <template #default="scope">
+                    <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['bas:basLocation:edit']">修改</el-button>
+                    <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['bas:basLocation:remove']">删除</el-button>
+                  </template>
                 </el-table-column>
             </el-table>
             <pagination v-show="total > 0" :total="total" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" @pagination="getList" />
